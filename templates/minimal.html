@@ -22,7 +22,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 10px;
+            padding: 0;
         }
 
         .leaderboard {
@@ -31,33 +31,33 @@
             height: 100%;
             display: flex;
             flex-direction: column;
+            padding: 0;
         }
 
         .rank-list {
             display: flex;
             flex-direction: column;
             gap: 0;
-            background: rgba(26, 26, 26, 0.7);
-            border-radius: 6px;
+            background: transparent;
+            border-radius: 0;
             overflow: hidden;
-            backdrop-filter: blur(10px);
             flex: 1;
             min-height: 0;
         }
 
         .rank-item {
             display: grid;
-            grid-template-columns: 40px minmax(80px, 1fr) 85px;
+            grid-template-columns: 40px 24px minmax(80px, 1fr) 70px;
             align-items: center;
-            gap: 6px;
+            gap: 3px;
             padding: 5px 8px;
-            background: rgba(15, 15, 15, 0.7);
+            background: rgba(0, 0, 0, 0.5);
             transition: background 0.2s;
             flex-shrink: 0;
         }
 
         .rank-item:hover {
-            background: rgba(26, 26, 26, 0.8);
+            background: rgba(0, 0, 0, 0.6);
         }
 
         .rank-icon {
@@ -70,10 +70,11 @@
         .rank-number {
             font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', monospace;
             font-weight: 700;
-            color: #888;
+            color: #bbb;
             font-size: 1rem;
             text-align: center;
             font-variant-numeric: tabular-nums;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2), 0 2px 6px rgba(0, 0, 0, 0.6);
         }
 
         .player-name {
@@ -82,16 +83,41 @@
             font-size: 1rem;
             font-weight: 500;
             overflow: hidden;
-            text-overflow: ellipsis;
             white-space: nowrap;
             letter-spacing: 0.01em;
+            position: relative;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2), 0 2px 6px rgba(0, 0, 0, 0.6);
+        }
+
+        .player-name-inner {
+            display: inline-block;
+            will-change: transform;
+        }
+
+        .player-name.scroll .player-name-inner {
+            animation: scrollText 6s ease-in-out infinite alternate;
+        }
+
+        .player-name.scroll:hover .player-name-inner {
+            animation-play-state: paused;
+        }
+
+        @keyframes scrollText {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(0); }
+            75% { transform: translateX(var(--scroll-distance, -50%)); }
+            100% { transform: translateX(var(--scroll-distance, -50%)); }
         }
 
         .player-name-styled {
             /* 样式由内联 style 属性控制 */
-            display: inline-flex;
+            display: inline;
+        }
+
+        .player-flag {
+            display: flex;
+            justify-content: center;
             align-items: center;
-            gap: 5px;
         }
 
         .flag {
@@ -110,6 +136,8 @@
             text-align: right;
             font-variant-numeric: tabular-nums;
             letter-spacing: 0.02em;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2), 0 2px 6px rgba(0, 0, 0, 0.6);
+            padding-right: 8px;
         }
 
         /* 固定的前三名 */
@@ -124,7 +152,7 @@
             flex: 1;
             overflow: hidden;
             position: relative;
-            background: rgba(15, 15, 15, 0.7);
+            background: transparent;
             min-height: 0;
         }
 
@@ -157,7 +185,7 @@
 
         @media (max-width: 480px) {
             .rank-item {
-                grid-template-columns: 36px minmax(70px, 1fr) 75px;
+                grid-template-columns: 36px 20px minmax(60px, 1fr) 65px;
                 padding: 5px 7px;
             }
 
@@ -179,8 +207,8 @@
             }
 
             .flag {
-                width: 18px;
-                height: 13.5px;
+                width: 16px;
+                height: 12px;
                 margin-top: 2px;
             }
         }
@@ -216,26 +244,36 @@
                                     {{ end }}
                                 {{ end }}
                             </div>
-                            <div class="player-name">
-                                {{ range $p := .Run.Players }}
-                                    {{ if eq $p.Rel "user" }}
-                                        {{ $playerData := index $.Players $p.ID }}
-                                        {{ $styled := styledName $playerData }}
-                                        {{ $countryCode := "" }}
-                                        {{ if $playerData.Location }}
-                                            {{ if $playerData.Location.Country }}
-                                                {{ $countryCode = $playerData.Location.Country.Code }}
-                                            {{ end }}
+                            {{ $countryCode := "" }}
+                            {{ range $p := .Run.Players }}
+                                {{ if eq $p.Rel "user" }}
+                                    {{ $playerData := index $.Players $p.ID }}
+                                    {{ if $playerData.Location }}
+                                        {{ if $playerData.Location.Country }}
+                                            {{ $countryCode = $playerData.Location.Country.Code }}
                                         {{ end }}
-                                        {{ if $styled.Style }}
-                                            <span class="player-name-styled" style="{{ $styled.Style }}">{{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="flag" onerror="this.style.display='none'"> {{ end }}{{ $styled.Name }}</span>
-                                        {{ else }}
-                                            {{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="flag" onerror="this.style.display='none'"> {{ end }}{{ $styled.Name }}
-                                        {{ end }}
-                                    {{ else }}
-                                        {{ $p.Name }}
                                     {{ end }}
                                 {{ end }}
+                            {{ end }}
+                            <div class="player-flag">
+                                {{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="flag" onerror="this.style.display='none'">{{ end }}
+                            </div>
+                            <div class="player-name">
+                                <span class="player-name-inner">
+                                    {{ range $p := .Run.Players }}
+                                        {{ if eq $p.Rel "user" }}
+                                            {{ $playerData := index $.Players $p.ID }}
+                                            {{ $styled := styledName $playerData }}
+                                            {{ if $styled.Style }}
+                                                <span class="player-name-styled" style="{{ $styled.Style }}">{{ $styled.Name }}</span>
+                                            {{ else }}
+                                                {{ $styled.Name }}
+                                            {{ end }}
+                                        {{ else }}
+                                            {{ $p.Name }}
+                                        {{ end }}
+                                    {{ end }}
+                                </span>
                             </div>
                             <div class="rank-time">{{ .Run.Times.Primary | formatTime }}</div>
                         </div>
@@ -256,26 +294,36 @@
                             {{ if ge $i 3 }}
                                 <div class="rank-item" data-index="{{ $i }}">
                                     <div class="rank-number">{{ add $i 1 }}</div>
-                                    <div class="player-name">
-                                        {{ range $p := .Run.Players }}
-                                            {{ if eq $p.Rel "user" }}
-                                                {{ $playerData := index $.Players $p.ID }}
-                                                {{ $styled := styledName $playerData }}
-                                                {{ $countryCode := "" }}
-                                                {{ if $playerData.Location }}
-                                                    {{ if $playerData.Location.Country }}
-                                                        {{ $countryCode = $playerData.Location.Country.Code }}
-                                                    {{ end }}
+                                    {{ $countryCode := "" }}
+                                    {{ range $p := .Run.Players }}
+                                        {{ if eq $p.Rel "user" }}
+                                            {{ $playerData := index $.Players $p.ID }}
+                                            {{ if $playerData.Location }}
+                                                {{ if $playerData.Location.Country }}
+                                                    {{ $countryCode = $playerData.Location.Country.Code }}
                                                 {{ end }}
-                                                {{ if $styled.Style }}
-                                                    <span class="player-name-styled" style="{{ $styled.Style }}">{{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="flag" onerror="this.style.display='none'"> {{ end }}{{ $styled.Name }}</span>
-                                                {{ else }}
-                                                    {{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="flag" onerror="this.style.display='none'"> {{ end }}{{ $styled.Name }}
-                                                {{ end }}
-                                            {{ else }}
-                                                {{ $p.Name }}
                                             {{ end }}
                                         {{ end }}
+                                    {{ end }}
+                                    <div class="player-flag">
+                                        {{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="flag" onerror="this.style.display='none'">{{ end }}
+                                    </div>
+                                    <div class="player-name">
+                                        <span class="player-name-inner">
+                                            {{ range $p := .Run.Players }}
+                                                {{ if eq $p.Rel "user" }}
+                                                    {{ $playerData := index $.Players $p.ID }}
+                                                    {{ $styled := styledName $playerData }}
+                                                    {{ if $styled.Style }}
+                                                        <span class="player-name-styled" style="{{ $styled.Style }}">{{ $styled.Name }}</span>
+                                                    {{ else }}
+                                                        {{ $styled.Name }}
+                                                    {{ end }}
+                                                {{ else }}
+                                                    {{ $p.Name }}
+                                                {{ end }}
+                                            {{ end }}
+                                        </span>
                                     </div>
                                     <div class="rank-time">{{ .Run.Times.Primary | formatTime }}</div>
                                 </div>
@@ -298,26 +346,61 @@
             const scrollContainer = scrollArea.querySelector('.scroll-container');
             if (!scrollContainer) return;
 
-            const rankItems = scrollContainer.querySelectorAll('.rank-item');
-            if (rankItems.length === 0) return;
+            // 获取元素和尺寸
+            function getElements() {
+                const rankItems = scrollContainer.querySelectorAll('.rank-item');
+                return {
+                    rankItems: Array.from(rankItems),
+                    itemHeight: rankItems.length > 0 ? rankItems[0].offsetHeight : 34
+                };
+            }
 
-            const itemHeight = rankItems[0].offsetHeight;
-            const totalItems = rankItems.length;
+            let elements = getElements();
+            const totalItems = elements.rankItems.length;
 
             // 计算可见项目数
             function calculateVisibleItems() {
                 const areaHeight = scrollArea.offsetHeight;
-                return Math.floor(areaHeight / itemHeight);
+                return Math.floor(areaHeight / elements.itemHeight);
             }
 
             let visibleItems = calculateVisibleItems();
 
-            // 监听窗口大小变化
-            window.addEventListener('resize', function() {
-                visibleItems = calculateVisibleItems();
-                updateScrollAnimation();
-            });
+            // 检测名字是否溢出并添加滚动效果
+            function updateNameScroll() {
+                const playerNames = document.querySelectorAll('.player-name');
+                // 滚动速度：每秒滚动的像素数
+                const scrollSpeed = 40; // 40px/秒
+                const pauseTime = 1; // 两端各暂停 1 秒
 
+                playerNames.forEach(nameEl => {
+                    const innerEl = nameEl.querySelector('.player-name-inner');
+                    if (!innerEl) return;
+
+                    // 检测是否溢出
+                    const isOverflowing = innerEl.scrollWidth > nameEl.clientWidth;
+
+                    if (isOverflowing) {
+                        // 计算超出的宽度
+                        const overflowWidth = innerEl.scrollWidth - nameEl.clientWidth;
+                        // 计算滚动距离：让文字右边缘对齐容器右边缘
+                        const scrollDistance = nameEl.clientWidth - innerEl.scrollWidth;
+
+                        // 单程滚动时间
+                        const travelTime = overflowWidth / scrollSpeed;
+                        // 总时间 = 单程滚动 + 两端暂停
+                        const oneWayTime = travelTime + pauseTime * 2;
+
+                        innerEl.style.setProperty('--scroll-distance', `${scrollDistance}px`);
+                        innerEl.style.animationDuration = `${oneWayTime}s`;
+                        nameEl.classList.add('scroll');
+                    } else {
+                        nameEl.classList.remove('scroll');
+                    }
+                });
+            }
+
+            // 更新滚动动画
             function updateScrollAnimation() {
                 // 只有当有多于可见项目数时才滚动
                 if (totalItems <= visibleItems) {
@@ -328,7 +411,7 @@
                 scrollArea.classList.remove('no-scroll');
 
                 // 计算滚动距离
-                const scrollDistance = itemHeight * (totalItems - visibleItems);
+                const scrollDistance = elements.itemHeight * (totalItems - visibleItems);
 
                 // 固定停留时间（秒）
                 const pauseDuration = 1;
@@ -375,7 +458,22 @@
                 scrollContainer.style.animationDuration = `${totalDuration}s`;
             }
 
+            // 监听窗口大小变化 - 使用 debounce 避免频繁计算
+            let resizeTimeout;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(function() {
+                    // 重新获取元素和尺寸
+                    elements = getElements();
+                    visibleItems = calculateVisibleItems();
+                    updateScrollAnimation();
+                    updateNameScroll();
+                }, 100);
+            });
+
+            // 初始化
             updateScrollAnimation();
+            updateNameScroll();
         });
     </script>
 </body>
