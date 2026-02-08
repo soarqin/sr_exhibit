@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Game.Names.International }} - {{ .Category.Name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: transparent;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        .leaderboard {
+            width: 100%;
+            max-width: 400px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .rank-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            background: rgba(26, 26, 26, 0.7);
+            border-radius: 6px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            flex: 1;
+            min-height: 0;
+        }
+
+        .rank-item {
+            display: grid;
+            grid-template-columns: 40px minmax(80px, 1fr) 85px;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            background: rgba(15, 15, 15, 0.7);
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .rank-item:hover {
+            background: rgba(26, 26, 26, 0.8);
+        }
+
+        .rank-icon {
+            width: 20px;
+            height: 20px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .rank-number {
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-weight: 700;
+            color: #888;
+            font-size: 0.9rem;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .player-name {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            letter-spacing: 0.01em;
+        }
+
+        .player-name-styled {
+            /* 样式由内联 style 属性控制 */
+        }
+
+        .rank-time {
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #fff;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.02em;
+        }
+
+        /* 固定的前三名 */
+        .fixed-ranks {
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        /* 滚动的区域 - 自适应高度 */
+        .scroll-area {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            background: rgba(15, 15, 15, 0.7);
+            min-height: 0;
+        }
+
+        .scroll-container {
+            animation: scroll 20s linear infinite;
+        }
+
+        .scroll-container:hover {
+            animation-play-state: paused;
+        }
+
+        /* 默认动画，会被 JS 覆盖 */
+        @keyframes scroll {
+            0% { transform: translateY(0); }
+            90% { transform: translateY(calc(-3 * 38px)); }
+            90.01% { transform: translateY(0); }
+            100% { transform: translateY(0); }
+        }
+
+        /* 当记录足够少时禁用滚动 */
+        .scroll-area.no-scroll .scroll-container {
+            animation: none;
+        }
+
+        .divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 480px) {
+            .rank-item {
+                grid-template-columns: 36px minmax(70px, 1fr) 75px;
+                padding: 7px 8px;
+            }
+
+            .player-name {
+                font-size: 0.8rem;
+            }
+
+            .rank-time {
+                font-size: 0.8rem;
+            }
+
+            .rank-icon {
+                width: 18px;
+                height: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="leaderboard">
+        {{ if .Leaderboard.Runs }}
+        <div class="rank-list">
+            <!-- 前三名固定 -->
+            <div class="fixed-ranks">
+                {{ range $i, $run := .Leaderboard.Runs }}
+                    {{ if lt $i 3 }}
+                        <div class="rank-item">
+                            <div>
+                                {{ if eq $i 0 }}
+                                    {{ if $.Game.Assets.Trophy1st.URI }}
+                                        <img src="{{ $.Game.Assets.Trophy1st.URI }}" alt="1st" class="rank-icon">
+                                    {{ else }}
+                                        <div class="rank-number">1</div>
+                                    {{ end }}
+                                {{ else if eq $i 1 }}
+                                    {{ if $.Game.Assets.Trophy2nd.URI }}
+                                        <img src="{{ $.Game.Assets.Trophy2nd.URI }}" alt="2nd" class="rank-icon">
+                                    {{ else }}
+                                        <div class="rank-number">2</div>
+                                    {{ end }}
+                                {{ else if eq $i 2 }}
+                                    {{ if $.Game.Assets.Trophy3rd.URI }}
+                                        <img src="{{ $.Game.Assets.Trophy3rd.URI }}" alt="3rd" class="rank-icon">
+                                    {{ else }}
+                                        <div class="rank-number">3</div>
+                                    {{ end }}
+                                {{ end }}
+                            </div>
+                            <div class="player-name">
+                                {{ range $p := .Run.Players }}
+                                    {{ if eq $p.Rel "user" }}
+                                        {{ $playerData := index $.Players $p.ID }}
+                                        {{ $styled := styledName $playerData }}
+                                        {{ if $styled.Style }}
+                                            <span class="player-name-styled" style="{{ $styled.Style }}">{{ $styled.Name }}</span>
+                                        {{ else }}
+                                            {{ $styled.Name }}
+                                        {{ end }}
+                                    {{ else }}
+                                        {{ $p.Name }}
+                                    {{ end }}
+                                {{ end }}
+                            </div>
+                            <div class="rank-time">{{ .Run.Times.Primary | formatTime }}</div>
+                        </div>
+                    {{ end }}
+                {{ end }}
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- 第4名及以后滚动 -->
+            {{ $totalRuns := len .Leaderboard.Runs }}
+            {{ if gt $totalRuns 3 }}
+                {{ $scrollCount := sub $totalRuns 3 }}
+                <div class="scroll-area" data-scroll-count="{{ $scrollCount }}">
+                    <div class="scroll-container" data-total="{{ $scrollCount }}">
+                        <!-- 第4名到最后一名 -->
+                        {{ range $i, $run := .Leaderboard.Runs }}
+                            {{ if ge $i 3 }}
+                                <div class="rank-item" data-index="{{ $i }}">
+                                    <div class="rank-number">{{ add $i 1 }}</div>
+                                    <div class="player-name">
+                                        {{ range $p := .Run.Players }}
+                                            {{ if eq $p.Rel "user" }}
+                                                {{ $playerData := index $.Players $p.ID }}
+                                                {{ $styled := styledName $playerData }}
+                                                {{ if $styled.Style }}
+                                                    <span class="player-name-styled" style="{{ $styled.Style }}">{{ $styled.Name }}</span>
+                                                {{ else }}
+                                                    {{ $styled.Name }}
+                                                {{ end }}
+                                            {{ else }}
+                                                {{ $p.Name }}
+                                            {{ end }}
+                                        {{ end }}
+                                    </div>
+                                    <div class="rank-time">{{ .Run.Times.Primary | formatTime }}</div>
+                                </div>
+                            {{ end }}
+                        {{ end }}
+                    </div>
+                </div>
+            {{ end }}
+        </div>
+        {{ end }}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const scrollArea = document.querySelector('.scroll-area');
+
+            // 如果没有滚动区域，直接返回
+            if (!scrollArea) return;
+
+            const scrollContainer = scrollArea.querySelector('.scroll-container');
+            if (!scrollContainer) return;
+
+            const rankItems = scrollContainer.querySelectorAll('.rank-item');
+            if (rankItems.length === 0) return;
+
+            const itemHeight = rankItems[0].offsetHeight;
+            const totalItems = rankItems.length;
+
+            // 计算可见项目数
+            function calculateVisibleItems() {
+                const areaHeight = scrollArea.offsetHeight;
+                return Math.floor(areaHeight / itemHeight);
+            }
+
+            let visibleItems = calculateVisibleItems();
+
+            // 监听窗口大小变化
+            window.addEventListener('resize', function() {
+                visibleItems = calculateVisibleItems();
+                updateScrollAnimation();
+            });
+
+            function updateScrollAnimation() {
+                // 只有当有多于可见项目数时才滚动
+                if (totalItems <= visibleItems) {
+                    scrollArea.classList.add('no-scroll');
+                    return;
+                }
+
+                scrollArea.classList.remove('no-scroll');
+
+                // 计算滚动距离
+                const scrollDistance = itemHeight * (totalItems - visibleItems);
+
+                // 固定停留时间（秒）
+                const pauseDuration = 2;
+
+                // 根据项目数量计算滚动时间
+                const baseDuration = 2; // 每个项目2秒
+                const scrollDuration = totalItems * baseDuration;
+
+                // 总时长计算，确保跳回点不超过100%
+                const scrollTime = scrollDuration;
+                const headPause = pauseDuration;
+                const tailPause = pauseDuration;
+                const resetTime = 0.1;
+                const totalDuration = scrollTime + headPause + tailPause + resetTime;
+
+                // 计算各阶段百分比
+                const headPauseEnd = (headPause / totalDuration) * 100;
+                const scrollEnd = ((scrollTime + headPause) / totalDuration) * 100;
+                const tailPauseEnd = ((scrollTime + headPause + tailPause) / totalDuration) * 100;
+                const resetEnd = ((scrollTime + headPause + tailPause + resetTime) / totalDuration) * 100;
+
+                // 移除旧的样式表
+                const oldStyleSheet = document.getElementById('dynamic-scroll-style');
+                if (oldStyleSheet) oldStyleSheet.remove();
+
+                // 创建滚动动画
+                const keyframes = `
+                    @keyframes scroll {
+                        0% { transform: translateY(0); }
+                        ${headPauseEnd.toFixed(4)}% { transform: translateY(0); }
+                        ${scrollEnd.toFixed(4)}% { transform: translateY(-${scrollDistance}px); }
+                        ${tailPauseEnd.toFixed(4)}% { transform: translateY(-${scrollDistance}px); }
+                        ${resetEnd.toFixed(4)}% { transform: translateY(0); }
+                        100% { transform: translateY(0); }
+                    }
+                `;
+
+                const styleSheet = document.createElement('style');
+                styleSheet.id = 'dynamic-scroll-style';
+                styleSheet.textContent = keyframes;
+                document.head.appendChild(styleSheet);
+
+                // 更新动画时长
+                scrollContainer.style.animationDuration = `${totalDuration}s`;
+            }
+
+            updateScrollAnimation();
+        });
+    </script>
+</body>
+</html>

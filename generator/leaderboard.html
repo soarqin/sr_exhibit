@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Game.Names.International }} - {{ .Category.Name }} 排行榜</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #eee;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 32px;
+            padding: 24px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-cover {
+            width: 120px;
+            height: 120px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .game-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .game-info {
+            flex: 1;
+        }
+
+        .game-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        .category-name {
+            font-size: 1.25rem;
+            color: #64ffda;
+            margin-bottom: 12px;
+        }
+
+        .game-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 0.875rem;
+            color: #aaa;
+        }
+
+        .game-meta a {
+            color: #64ffda;
+            text-decoration: none;
+        }
+
+        .game-meta a:hover {
+            text-decoration: underline;
+        }
+
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .leaderboard-table thead {
+            background: rgba(100, 255, 218, 0.1);
+        }
+
+        .leaderboard-table th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #64ffda;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .leaderboard-table th:first-child,
+        .leaderboard-table td:first-child {
+            text-align: center;
+        }
+
+        .leaderboard-table td {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .leaderboard-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .rank {
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-weight: 700;
+            color: #ffd700;
+            font-size: 1.1rem;
+            display: block;
+            text-align: center;
+            width: 32px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rank-1 { color: #ffd700; }
+        .rank-2 { color: #c0c0c0; }
+        .rank-3 { color: #cd7f32; }
+
+        .rank-icon {
+            width: 32px;
+            height: 32px;
+            display: block;
+        }
+
+        /* 确保奖牌图标的单元格使用 flex 布局，居中对齐 */
+        .leaderboard-table td:first-child {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .players {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .player-badge {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+
+        .time {
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.02em;
+        }
+
+        .video-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 16px;
+            background: rgba(100, 255, 218, 0.2);
+            color: #64ffda;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .video-link:hover {
+            background: rgba(100, 255, 218, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .no-video {
+            color: #666;
+            font-size: 0.875rem;
+        }
+
+        .date {
+            color: #888;
+            font-size: 0.875rem;
+        }
+
+        .footer {
+            margin-top: 32px;
+            text-align: center;
+            color: #666;
+            font-size: 0.875rem;
+        }
+
+        .footer a {
+            color: #64ffda;
+            text-decoration: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 64px 24px;
+            color: #888;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .game-meta {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .leaderboard-table {
+                font-size: 0.875rem;
+            }
+
+            .leaderboard-table th,
+            .leaderboard-table td {
+                padding: 12px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="game-cover">
+                {{ if .Game.Assets.Cover.URI }}
+                <img src="{{ .Game.Assets.Cover.URI }}" alt="{{ .Game.Names.International }}">
+                {{ else }}
+                <div style="width: 100%; height: 100%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 2rem;">🎮</span>
+                </div>
+                {{ end }}
+            </div>
+            <div class="game-info">
+                <h1 class="game-title">{{ .Game.Names.International }}</h1>
+                <div class="category-name">{{ .Category.Name }}</div>
+                <div class="game-meta">
+                    <span>发布日期: {{ .Game.ReleaseDate }}</span>
+                    <span>|</span>
+                    <a href="{{ .Game.WebLink }}" target="_blank" rel="noopener">speedrun.com</a>
+                    {{ if .Leaderboard.Weblink }}
+                    <span>|</span>
+                    <a href="{{ .Leaderboard.Weblink }}" target="_blank" rel="noopener">查看完整榜单</a>
+                    {{ end }}
+                </div>
+            </div>
+        </header>
+
+        {{ if .Leaderboard.Runs }}
+        <table class="leaderboard-table">
+            <thead>
+                <tr>
+                    <th>排名</th>
+                    <th>玩家</th>
+                    <th>时间</th>
+                    <th>日期</th>
+                    <th>视频</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ range .Leaderboard.Runs }}
+                <tr>
+                    <td>
+                        {{ if eq .Place 1 }}
+                            {{ if $.Game.Assets.Trophy1st.URI }}
+                                <img src="{{ $.Game.Assets.Trophy1st.URI }}" alt="1st" class="rank-icon">
+                            {{ else }}
+                                <span class="rank rank-1">{{ .Place }}</span>
+                            {{ end }}
+                        {{ else if eq .Place 2 }}
+                            {{ if $.Game.Assets.Trophy2nd.URI }}
+                                <img src="{{ $.Game.Assets.Trophy2nd.URI }}" alt="2nd" class="rank-icon">
+                            {{ else }}
+                                <span class="rank rank-2">{{ .Place }}</span>
+                            {{ end }}
+                        {{ else if eq .Place 3 }}
+                            {{ if $.Game.Assets.Trophy3rd.URI }}
+                                <img src="{{ $.Game.Assets.Trophy3rd.URI }}" alt="3rd" class="rank-icon">
+                            {{ else }}
+                                <span class="rank rank-3">{{ .Place }}</span>
+                            {{ end }}
+                        {{ else }}
+                            <span class="rank">{{ .Place }}</span>
+                        {{ end }}
+                    </td>
+                    <td>
+                        <div class="players">
+                            {{ range $i, $p := .Run.Players }}
+                                {{ if eq $p.Rel "user" }}
+                                    {{ $playerData := index $.Players $p.ID }}
+                                    {{ $styled := styledName $playerData }}
+                                    {{ if $styled.Style }}
+                                        <span class="player-badge" style="{{ $styled.Style }}">{{ $styled.Name }}</span>
+                                    {{ else }}
+                                        <span class="player-badge">{{ $styled.Name }}</span>
+                                    {{ end }}
+                                {{ else }}
+                                    <span class="player-badge">{{ $p.Name }}</span>
+                                {{ end }}
+                            {{ end }}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="time">{{ .Run.Times.Primary | formatTime }}</span>
+                    </td>
+                    <td>
+                        <span class="date">{{ .Run.Date }}</span>
+                    </td>
+                    <td>
+                        {{ if .Run.Videos }}
+                            {{ with .Run.Videos.Links }}
+                                {{ if . }}
+                                    {{ range $i, $link := . }}
+                                        {{ if eq $i 0 }}
+                                            <a href="{{ $link.URI }}" target="_blank" rel="noopener" class="video-link">▶ 观看</a>
+                                        {{ end }}
+                                    {{ end }}
+                                {{ else }}
+                                    <span class="no-video">无视频</span>
+                                {{ end }}
+                            {{ end }}
+                        {{ else }}
+                            <span class="no-video">无视频</span>
+                        {{ end }}
+                    </td>
+                </tr>
+                {{ end }}
+            </tbody>
+        </table>
+        {{ else }}
+        <div class="empty-state">
+            <div class="empty-state-icon">🏆</div>
+            <p>暂无速通记录</p>
+        </div>
+        {{ end }}
+
+        <footer class="footer">
+            <p>数据来源: <a href="https://www.speedrun.com" target="_blank" rel="noopener">speedrun.com</a></p>
+            <p style="margin-top: 8px;">由 <a href="https://github.com/soar/sr_exhibit" target="_blank" rel="noopener">sr_exhibit</a> 生成</p>
+        </footer>
+    </div>
+</body>
+</html>

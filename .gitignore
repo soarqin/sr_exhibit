@@ -1,0 +1,48 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+sr_exhibit
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# Output directory
+/output/
+
+# Cache directory
+/.cache/
+
+# IDE specific files
+/.vscode/
+/.idea/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Config files (may contain sensitive data)
+config.yaml
+*.yaml
+!config.yaml.example
+
+# Build artifacts
+/dist/
+/build/
+
+# CLAUDE user data
+/.claude/
