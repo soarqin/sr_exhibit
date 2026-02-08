@@ -158,6 +158,18 @@
             font-size: 1.1rem;
             font-weight: 500;
             letter-spacing: 0.01em;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .country-flag {
+            width: 20px;
+            height: 15px;
+            object-fit: contain;
+            border-radius: 2px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            margin-top: 3px;
         }
 
         .time {
@@ -312,10 +324,16 @@
                                 {{ if eq $p.Rel "user" }}
                                     {{ $playerData := index $.Players $p.ID }}
                                     {{ $styled := styledName $playerData }}
+                                    {{ $countryCode := "" }}
+                                    {{ if $playerData.Location }}
+                                        {{ if $playerData.Location.Country }}
+                                            {{ $countryCode = $playerData.Location.Country.Code }}
+                                        {{ end }}
+                                    {{ end }}
                                     {{ if $styled.Style }}
-                                        <span class="player-badge" style="{{ $styled.Style }}">{{ $styled.Name }}</span>
+                                        <span class="player-badge" style="{{ $styled.Style }}">{{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="country-flag" onerror="this.style.display='none'"> {{ end }}{{ $styled.Name }}</span>
                                     {{ else }}
-                                        <span class="player-badge">{{ $styled.Name }}</span>
+                                        <span class="player-badge">{{ if $countryCode }}<img src="{{ flagURL $countryCode }}" alt="{{ $countryCode }}" class="country-flag" onerror="this.style.display='none'"> {{ end }}{{ $styled.Name }}</span>
                                     {{ end }}
                                 {{ else }}
                                     <span class="player-badge">{{ $p.Name }}</span>

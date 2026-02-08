@@ -111,7 +111,7 @@ func (c *LeaderboardCache) Save(data *CachedLeaderboard) error {
 
 	// Write header
 	writer.Write([]string{
-		"rank", "player_id", "player_name", "time_seconds",
+		"rank", "player_id", "player_name", "country_code", "time_seconds",
 		"date", "submit_url", "run_id", "video_links",
 	})
 
@@ -120,12 +120,17 @@ func (c *LeaderboardCache) Save(data *CachedLeaderboard) error {
 		for _, player := range run.Run.Players {
 			var playerName string
 			var playerID string
+			var countryCode string
 
 			if player.Rel == "user" {
 				if pd, ok := data.Players[player.ID]; ok {
 					playerName = pd.Names.International
 					if playerName == "" {
 						playerName = pd.Name
+					}
+					// Get country code
+					if pd.Location != nil && pd.Location.Country != nil {
+						countryCode = pd.Location.Country.Code
 					}
 				}
 				playerID = player.ID
@@ -146,6 +151,7 @@ func (c *LeaderboardCache) Save(data *CachedLeaderboard) error {
 				fmt.Sprintf("%d", run.Place),
 				playerID,
 				playerName,
+				countryCode, // Country code (ISO Alpha-2)
 				fmt.Sprintf("%.2f", run.Run.Times.PrimaryT), // Seconds
 				run.Run.Date,
 				run.Run.SubmitURL,
@@ -236,11 +242,13 @@ func (c *LeaderboardCache) Load(key *CacheKey) (*CachedLeaderboard, error) {
 
 		// Parse data row
 		dataLineCount++
-		if len(record) >= 8 {
+		if len(record) >= 9 {
 			var place int
 			var primaryT float64
 			fmt.Sscanf(record[0], "%d", &place)
-			fmt.Sscanf(record[3], "%f", &primaryT) // time_seconds is at index 3
+			fmt.Sscanf(record[4], "%f", &primaryT) // time_seconds is at index 4 (after country_code)
+
+			countryCode := record[3] // country_code is at index 3
 
 			// Convert seconds to ISO 8601 format
 			totalSeconds := int(primaryT)
@@ -266,18 +274,39 @@ func (c *LeaderboardCache) Load(key *CacheKey) (*CachedLeaderboard, error) {
 
 			// Parse video links
 			var videoLinks []models.VideoLink
-			if len(record) > 7 && record[7] != "" {
-				links := strings.Split(record[7], "|")
+			if len(record) > 8 && record[8] != "" {
+				links := strings.Split(record[8], "|")
 				for _, link := range links {
 					videoLinks = append(videoLinks, models.VideoLink{URI: link})
 				}
 			}
 
-			// Collect player info - only save basic info, detailed data from player cache
+			// Collect player info - save country code
 			var players []models.Player
 			if record[1] != "" {
 				players = []models.Player{
 					{Rel: "user", ID: record[1]},
+				}
+				// Store country code in Players map
+				if countryCode != "" {
+					if pd, ok := result.Players[record[1]]; ok {
+						// Player already exists, update location
+						if pd.Location == nil {
+							pd.Location = &models.Location{}
+						}
+						if pd.Location.Country == nil {
+							pd.Location.Country = &models.Country{}
+						}
+						pd.Location.Country.Code = countryCode
+						result.Players[record[1]] = pd
+					} else {
+						// Create new player entry with country code
+						result.Players[record[1]] = models.PlayerData{
+							Location: &models.Location{
+								Country: &models.Country{Code: countryCode},
+							},
+						}
+					}
 				}
 			} else {
 				players = []models.Player{
@@ -288,14 +317,14 @@ func (c *LeaderboardCache) Load(key *CacheKey) (*CachedLeaderboard, error) {
 			run := models.RunEntry{
 				Place: place,
 				Run: models.RunData{
-					ID:      record[6], // run_id is at index 6
+					ID:      record[7], // run_id is at index 7
 					Players: players,
 					Times: models.RunTimes{
 						Primary:  primary, // Converted ISO 8601 format
 						PrimaryT: primaryT,
 					},
-					Date:      record[4], // date is at index 4
-					SubmitURL: record[5], // submit_url is at index 5
+					Date:      record[5], // date is at index 5
+					SubmitURL: record[6], // submit_url is at index 6
 				},
 			}
 

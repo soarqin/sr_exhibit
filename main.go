@@ -360,15 +360,41 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 		}
 
 		// Fill player data: first from cache, then from API if cache miss
+		// Preserve existing Players from leaderboard cache (contains country_code)
+		// CSV cache (country_code) takes priority over playerCache (JSON)
+		leaderboardPlayers := cachedData.Players
 		cachedData.Players = make(map[string]models.PlayerData)
 
 		for playerID := range playerIDs {
+			// Start with leaderboard cache data as base (has country_code from CSV)
+			var basePlayer models.PlayerData
+			hasLbData := false
+			if lbPlayer, found := leaderboardPlayers[playerID]; found {
+				basePlayer = lbPlayer
+				hasLbData = true
+			}
+
+			// Try to get full data from playerCache (JSON) for name style etc
 			if playerCache != nil {
-				// Try to get from cache first
 				if data, found := playerCache.Get(playerID); found {
+					// Always use country_code from leaderboard cache (CSV) as priority
+					if hasLbData && basePlayer.Location != nil && basePlayer.Location.Country != nil {
+						// Use CSV country_code, override playerCache
+						if data.Location == nil {
+							data.Location = &models.Location{}
+						}
+						data.Location.Country = basePlayer.Location.Country
+					}
 					cachedData.Players[playerID] = *data
 					continue
 				}
+			}
+
+			// No playerCache data, use leaderboard cache data or fetch from API
+			if hasLbData {
+				// Use leaderboard cache data (has at least country_code)
+				cachedData.Players[playerID] = basePlayer
+				continue
 			}
 
 			// Cache miss, fetch from API
@@ -423,15 +449,41 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 				}
 
 				// Fill player data: first from cache, then from API if cache miss
+				// Preserve existing Players from leaderboard cache (contains country_code)
+				// CSV cache (country_code) takes priority over playerCache (JSON)
+				leaderboardPlayers := cachedData.Players
 				cachedData.Players = make(map[string]models.PlayerData)
 
 				for playerID := range playerIDs {
+					// Start with leaderboard cache data as base (has country_code from CSV)
+					var basePlayer models.PlayerData
+					hasLbData := false
+					if lbPlayer, found := leaderboardPlayers[playerID]; found {
+						basePlayer = lbPlayer
+						hasLbData = true
+					}
+
+					// Try to get full data from playerCache (JSON) for name style etc
 					if playerCache != nil {
-						// Try to get from cache first
 						if data, found := playerCache.Get(playerID); found {
+							// Always use country_code from leaderboard cache (CSV) as priority
+							if hasLbData && basePlayer.Location != nil && basePlayer.Location.Country != nil {
+								// Use CSV country_code, override playerCache
+								if data.Location == nil {
+									data.Location = &models.Location{}
+								}
+								data.Location.Country = basePlayer.Location.Country
+							}
 							cachedData.Players[playerID] = *data
 							continue
 						}
+					}
+
+					// No playerCache data, use leaderboard cache data or fetch from API
+					if hasLbData {
+						// Use leaderboard cache data (has at least country_code)
+						cachedData.Players[playerID] = basePlayer
+						continue
 					}
 
 					// Cache miss, fetch from API
@@ -495,7 +547,7 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 	fmt.Printf("  Got %d records\n", len(leaderboard.Runs))
 
 	fmt.Println("Generating page...")
-	gen, err := generator.NewGenerator(templatePath)
+	gen, err := generator.NewGenerator(templatePath, config.CountryCodeMap)
 	if err != nil {
 		return fmt.Errorf("failed to create generator: %w", err)
 	}

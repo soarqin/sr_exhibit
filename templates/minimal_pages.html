@@ -119,8 +119,8 @@
             flex-shrink: 0;
         }
 
-        /* 滚动的区域 - 自适应高度 */
-        .scroll-area {
+        /* 翻页区域 - 自适应高度 */
+        .page-area {
             flex: 1;
             overflow: hidden;
             position: relative;
@@ -128,25 +128,36 @@
             min-height: 0;
         }
 
-        .scroll-container {
-            animation: scroll 20s linear infinite;
+        .page-container {
+            display: flex;
+            flex-direction: column;
         }
 
-        .scroll-container:hover {
-            animation-play-state: paused;
+        .page {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
         }
 
-        /* 默认动画，会被 JS 覆盖 */
-        @keyframes scroll {
-            0% { transform: translateY(0); }
-            90% { transform: translateY(calc(-3 * 34px)); }
-            90.01% { transform: translateY(0); }
-            100% { transform: translateY(0); }
+        .page.active {
+            opacity: 1;
+            transform: translateY(0);
+            position: relative;
+            pointer-events: auto;
         }
 
-        /* 当记录足够少时禁用滚动 */
-        .scroll-area.no-scroll .scroll-container {
-            animation: none;
+        .page.fade-out {
+            opacity: 0;
+            transform: translateY(-10px);
         }
 
         .divider {
@@ -245,12 +256,11 @@
 
             <div class="divider"></div>
 
-            <!-- 第4名及以后滚动 -->
+            <!-- 第4名及以后翻页 -->
             {{ $totalRuns := len .Leaderboard.Runs }}
             {{ if gt $totalRuns 3 }}
-                {{ $scrollCount := sub $totalRuns 3 }}
-                <div class="scroll-area" data-scroll-count="{{ $scrollCount }}">
-                    <div class="scroll-container" data-total="{{ $scrollCount }}">
+                <div class="page-area" data-total-runs="{{ $totalRuns }}">
+                    <div class="page-container">
                         <!-- 第4名到最后一名 -->
                         {{ range $i, $run := .Leaderboard.Runs }}
                             {{ if ge $i 3 }}
@@ -290,92 +300,94 @@
 
     <script type="text/javascript">
         document.addEventListener('DOMContentLoaded', function() {
-            const scrollArea = document.querySelector('.scroll-area');
+            const pageArea = document.querySelector('.page-area');
+            const pageContainer = pageArea?.querySelector('.page-container');
 
-            // 如果没有滚动区域，直接返回
-            if (!scrollArea) return;
+            // 如果没有翻页区域，直接返回
+            if (!pageArea || !pageContainer) return;
 
-            const scrollContainer = scrollArea.querySelector('.scroll-container');
-            if (!scrollContainer) return;
-
-            const rankItems = scrollContainer.querySelectorAll('.rank-item');
+            const rankItems = Array.from(pageContainer.querySelectorAll('.rank-item'));
             if (rankItems.length === 0) return;
 
             const itemHeight = rankItems[0].offsetHeight;
             const totalItems = rankItems.length;
 
-            // 计算可见项目数
-            function calculateVisibleItems() {
-                const areaHeight = scrollArea.offsetHeight;
-                return Math.floor(areaHeight / itemHeight);
+            // 计算每页显示的项目数
+            function calculateItemsPerPage() {
+                const areaHeight = pageArea.offsetHeight;
+                return Math.max(1, Math.floor(areaHeight / itemHeight));
             }
 
-            let visibleItems = calculateVisibleItems();
+            let itemsPerPage = calculateItemsPerPage();
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            let currentPage = 0;
+
+            // 创建页面
+            function createPages() {
+                // 清除现有的页面元素
+                pageArea.querySelectorAll('.page').forEach(p => p.remove());
+
+                // 将项目分组到页面中
+                for (let i = 0; i < totalPages; i++) {
+                    const page = document.createElement('div');
+                    page.className = 'page';
+                    if (i === 0) page.classList.add('active');
+
+                    const startIdx = i * itemsPerPage;
+                    const endIdx = Math.min(startIdx + itemsPerPage, totalItems);
+
+                    for (let j = startIdx; j < endIdx; j++) {
+                        page.appendChild(rankItems[j]);
+                    }
+
+                    pageArea.appendChild(page);
+                }
+            }
+
+            // 切换到指定页面（带淡入淡出效果）
+            function showPage(pageIndex) {
+                const pages = pageArea.querySelectorAll('.page');
+                const activePage = pageArea.querySelector('.page.active');
+
+                if (activePage && activePage !== pages[pageIndex]) {
+                    // 当前页面淡出
+                    activePage.classList.add('fade-out');
+                    activePage.classList.remove('active');
+
+                    // 等待淡出动画完成后显示新页面
+                    setTimeout(() => {
+                        activePage.classList.remove('fade-out');
+                        pages[pageIndex].classList.add('active');
+                    }, 400); // 与 CSS transition 时间一致
+                } else if (!activePage) {
+                    // 初始显示
+                    pages[pageIndex].classList.add('active');
+                }
+            }
+
+            // 下一页
+            function nextPage() {
+                currentPage = (currentPage + 1) % totalPages;
+                showPage(currentPage);
+            }
+
+            // 初始化
+            createPages();
 
             // 监听窗口大小变化
             window.addEventListener('resize', function() {
-                visibleItems = calculateVisibleItems();
-                updateScrollAnimation();
+                const newItemsPerPage = calculateItemsPerPage();
+                if (newItemsPerPage !== itemsPerPage) {
+                    itemsPerPage = newItemsPerPage;
+                    currentPage = 0;
+                    // 将所有项目移回 pageContainer
+                    rankItems.forEach(item => pageContainer.appendChild(item));
+                    createPages();
+                }
             });
 
-            function updateScrollAnimation() {
-                // 只有当有多于可见项目数时才滚动
-                if (totalItems <= visibleItems) {
-                    scrollArea.classList.add('no-scroll');
-                    return;
-                }
-
-                scrollArea.classList.remove('no-scroll');
-
-                // 计算滚动距离
-                const scrollDistance = itemHeight * (totalItems - visibleItems);
-
-                // 固定停留时间（秒）
-                const pauseDuration = 1;
-
-                // 根据项目数量计算滚动时间
-                const baseDuration = 1; // 每个项目1秒
-                const scrollDuration = totalItems * baseDuration;
-
-                // 总时长计算，确保跳回点不超过100%
-                const scrollTime = scrollDuration;
-                const headPause = pauseDuration;
-                const tailPause = pauseDuration;
-                const resetTime = 0.1;
-                const totalDuration = scrollTime + headPause + tailPause + resetTime;
-
-                // 计算各阶段百分比
-                const headPauseEnd = (headPause / totalDuration) * 100;
-                const scrollEnd = ((scrollTime + headPause) / totalDuration) * 100;
-                const tailPauseEnd = ((scrollTime + headPause + tailPause) / totalDuration) * 100;
-                const resetEnd = ((scrollTime + headPause + tailPause + resetTime) / totalDuration) * 100;
-
-                // 移除旧的样式表
-                const oldStyleSheet = document.getElementById('dynamic-scroll-style');
-                if (oldStyleSheet) oldStyleSheet.remove();
-
-                // 创建滚动动画
-                const keyframes = `
-                    @keyframes scroll {
-                        0% { transform: translateY(0); }
-                        ${headPauseEnd.toFixed(4)}% { transform: translateY(0); }
-                        ${scrollEnd.toFixed(4)}% { transform: translateY(-${scrollDistance}px); }
-                        ${tailPauseEnd.toFixed(4)}% { transform: translateY(-${scrollDistance}px); }
-                        ${resetEnd.toFixed(4)}% { transform: translateY(0); }
-                        100% { transform: translateY(0); }
-                    }
-                `;
-
-                const styleSheet = document.createElement('style');
-                styleSheet.id = 'dynamic-scroll-style';
-                styleSheet.textContent = keyframes;
-                document.head.appendChild(styleSheet);
-
-                // 更新动画时长
-                scrollContainer.style.animationDuration = `${totalDuration}s`;
-            }
-
-            updateScrollAnimation();
+            // 每6秒翻页一次
+            setInterval(nextPage, 6000);
         });
     </script>
 </body>

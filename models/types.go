@@ -129,6 +129,23 @@ type PlayerData struct {
 	Names     struct {
 		International string `json:"international"`
 	} `json:"names,omitempty"`
+	Location  *Location  `json:"location,omitempty"`
+}
+
+// Location represents user location
+type Location struct {
+	Country *Country `json:"country,omitempty"`
+}
+
+// Country represents country information
+type Country struct {
+	Code  string     `json:"code,omitempty"` // ISO Alpha-2 code (e.g., "US", "GB", "JP")
+	Names CountryNames `json:"names,omitempty"`
+}
+
+// CountryNames represents country names
+type CountryNames struct {
+	International string `json:"international,omitempty"`
 }
 
 // NameStyle represents player name style
@@ -146,13 +163,14 @@ type NameStyleColor struct {
 
 // Config represents config file structure
 type Config struct {
-	Game      string            `yaml:"game"`
-	Category  string            `yaml:"category"`
-	Output    string            `yaml:"output"`
-	Template  string            `yaml:"template"` // Custom template file path
-	API       APIConfig         `yaml:"api"`
-	Cache     CacheConfig       `yaml:"cache"`    // Cache configuration
-	Variables map[string]string `yaml:"variables"` // Variable filters
+	Game           string            `yaml:"game"`
+	Category       string            `yaml:"category"`
+	Output         string            `yaml:"output"`
+	Template       string            `yaml:"template"` // Custom template file path
+	API            APIConfig         `yaml:"api"`
+	Cache          CacheConfig       `yaml:"cache"`          // Cache configuration
+	Variables      map[string]string `yaml:"variables"`      // Variable filters
+	CountryCodeMap map[string]string `yaml:"countryCodeMap"` // Country code replacement rules, e.g. {"xk": "rs"} for Kosovo -> Serbia
 }
 
 // APIConfig represents API configuration

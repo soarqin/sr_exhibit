@@ -22,29 +22,36 @@ var templateFS embed.FS
 
 // LeaderboardData represents template data structure
 type LeaderboardData struct {
-	Game      models.Game
-	Category  models.Category
-	Leaderboard models.LeaderboardData
-	Players   map[string]models.PlayerData
+	Game           models.Game
+	Category       models.Category
+	Leaderboard    models.LeaderboardData
+	Players        map[string]models.PlayerData
+	CountryCodeMap map[string]string // Country code replacement rules
 }
 
 // Generator represents the HTML generator
 type Generator struct {
-	templates *template.Template
-	m         *minify.M
+	templates      *template.Template
+	m              *minify.M
+	countryCodeMap map[string]string // Country code replacement rules
 }
 
 // NewGenerator creates a new generator
 // templatePath: use embedded template if empty, otherwise load external template from specified path
-func NewGenerator(templatePath string) (*Generator, error) {
+// countryCodeMap: country code replacement rules, e.g. {"xk": "rs"} for Kosovo -> Serbia
+func NewGenerator(templatePath string, countryCodeMap map[string]string) (*Generator, error) {
 	// Create template and register custom functions
+	// Include flagURL with closure over countryCodeMap
 	funcMap := template.FuncMap{
-		"formatTime":     formatTimeISO,
-		"nameStyleAttr":  GetNameStyleAttr,
-		"styledName":     GetStyledPlayerName,
-		"first":          firstN,
-		"add":            add,
-		"sub":            sub,
+		"formatTime":    formatTimeISO,
+		"nameStyleAttr": GetNameStyleAttr,
+		"styledName":    GetStyledPlayerName,
+		"first":         firstN,
+		"add":           add,
+		"sub":           sub,
+		"flagURL": func(code string) string {
+			return CountryFlagURLWithMap(code, countryCodeMap)
+		},
 	}
 
 	var tmpl *template.Template
@@ -80,13 +87,18 @@ func NewGenerator(templatePath string) (*Generator, error) {
 	m.Add("text/html", &html.Minifier{
 		KeepDefaultAttrVals: true,
 		KeepDocumentTags:   true,
+		KeepWhitespace:     false,
 	})
 	m.Add("text/css", &css.Minifier{})
-	m.Add("text/javascript", &js.Minifier{})
+	m.Add("text/javascript", &js.Minifier{
+		KeepVarNames: false,
+		Version:      2022,
+	})
 
 	return &Generator{
-		templates: tmpl,
-		m:         m,
+		templates:      tmpl,
+		m:              m,
+		countryCodeMap: countryCodeMap,
 	}, nil
 }
 
@@ -144,6 +156,9 @@ func (g *Generator) Generate(outputPath string, data *LeaderboardData) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
+
+	// Set CountryCodeMap for template access
+	data.CountryCodeMap = g.countryCodeMap
 
 	// Render template to buffer first
 	var buf bytes.Buffer
@@ -330,4 +345,32 @@ func add(a, b int) int {
 // sub returns the difference of two integers
 func sub(a, b int) int {
 	return a - b
+}
+
+// CountryFlagURL returns the speedrun.com official flag image URL
+// e.g., "US" -> "https://www.speedrun.com/images/flags/us.png"
+func CountryFlagURL(code string) string {
+	return CountryFlagURLWithMap(code, nil)
+}
+
+// CountryFlagURLWithMap returns the speedrun.com official flag image URL with country code replacement
+// countryCodeMap: optional map for replacing country codes, e.g. {"xk": "rs"} for Kosovo -> Serbia
+// e.g., "US" -> "https://www.speedrun.com/images/flags/us.png"
+// If code is in replacement map, uses the replacement code instead
+func CountryFlagURLWithMap(code string, countryCodeMap map[string]string) string {
+	if len(code) < 2 {
+		return ""
+	}
+
+	// Convert to lowercase for lookup and URL
+	codeLower := strings.ToLower(code)
+
+	// Check if there's a replacement rule
+	if countryCodeMap != nil {
+		if replacement, ok := countryCodeMap[codeLower]; ok {
+			codeLower = strings.ToLower(replacement)
+		}
+	}
+
+	return fmt.Sprintf("https://www.speedrun.com/images/flags/%s.png", codeLower)
 }

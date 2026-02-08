@@ -28,13 +28,19 @@ sr_exhibit is a command-line tool written in Go that fetches speedrun leaderboar
 - Only displays valid video links
 - Supported platforms: YouTube, Twitch, Niconico, Dailymotion, Vimeo, Bilibili
 
-### 5. Time Formatting
+### 5. Country Flags
+- Displays country flag image before player names
+- Uses speedrun.com official flag images: `https://www.speedrun.com/images/flags/{code}.png`
+- ISO Alpha-2 country codes (e.g., "us", "gb", "jp" in lowercase)
+- Country code cached in both CSV and JSON cache
+
+### 6. Time Formatting
 - Whole seconds don't show `.00`: `14:35` instead of `14:35.00`
 - Milliseconds displayed correctly: `14:35.50`
 
-### 6. Caching System
+### 7. Caching System
 - **Leaderboard CSV Cache**: Saves basic leaderboard data, easy to edit manually
-- **Player JSON Cache**: Saves detailed player data (including name styles)
+- **Player JSON Cache**: Saves detailed player data (including name styles and country codes)
 - Three cache modes:
   - Auto mode: Detects cache and prompts user
   - Force use: `--use-cache`
@@ -101,6 +107,22 @@ type PlayerData struct {
     Names     struct {
         International string
     }
+    Location  *Location   // Player location (country)
+}
+```
+
+### Location (Player Location)
+```go
+type Location struct {
+    Country *Country  // Country information
+}
+```
+
+### Country (Country Information)
+```go
+type Country struct {
+    Code  string  // ISO Alpha-2 code (e.g., "US", "GB", "JP")
+    Names CountryNames
 }
 ```
 
@@ -188,13 +210,14 @@ Leaderboard data is saved in `.cache/{game_id}_{category_id}_{variables}.csv`:
 #CATEGORY,7kjpl1gk,Any%
 #CACHED_AT,2026-02-08T15:27:40+08:00
 #VARIABLE,e8m7em86,9qj7z0oq
-rank,player_id,player_name,time_seconds,date,submit_url,run_id,video_links
-1,8rpk9dgj,secureaccount,1491.04,2026-02-02,,mr5p4e2y,https://www.youtube.com/watch?v=0fT1lHHQ0xs
+rank,player_id,player_name,country_code,time_seconds,date,submit_url,run_id,video_links
+1,8rpk9dgj,secureaccount,US,1491.04,2026-02-02,,mr5p4e2y,https://www.youtube.com/watch?v=0fT1lHHQ0xs
 ```
 
 **CSV Format Notes**:
 - Only saves basic data, easy to edit manually
 - Does NOT save player name styles (styles are read from JSON cache)
+- `country_code`: ISO Alpha-2 country code (e.g., "US", "GB", "JP")
 - `time_seconds`: Floating-point seconds
 - `video_links`: Multiple links separated by `|`
 
@@ -209,6 +232,11 @@ Detailed player data is saved in `.cache/players.json`:
       "name": "secureaccount",
       "names": {
         "international": "secureaccount"
+      },
+      "location": {
+        "country": {
+          "code": "US"
+        }
       },
       "nameStyle": {
         "style": "solid",
@@ -288,6 +316,17 @@ funcMap := template.FuncMap{
     "formatTime":     formatTimeISO,
     "nameStyleAttr":  GetNameStyleAttr,
     "styledName":     GetStyledPlayerName,
+    "flagURL":        CountryFlagURL,  // Get speedrun.com flag image URL
+}
+```
+
+### Country Flag Logic
+```go
+// Get speedrun.com official flag image URL
+// e.g., "US" -> "https://www.speedrun.com/images/flags/us.png"
+func CountryFlagURL(code string) string {
+    code = strings.ToLower(code)
+    return fmt.Sprintf("https://www.speedrun.com/images/flags/%s.png", code)
 }
 ```
 
@@ -301,6 +340,7 @@ func GetStyledPlayerName(playerData models.PlayerData) StyledPlayerName
 ## Recent Updates
 
 ### 2026-02-08
+- **Country Flags**: Display country flag images before player names (using speedrun.com official flag URLs)
 - **Documentation**: Added README.md with program description, usage, and build instructions
 - **Licensing**: Added LICENSE file (MIT License)
 - **HTML Minification**: Output HTML (including embedded CSS and JavaScript) is minified using tdewolff/minify library
