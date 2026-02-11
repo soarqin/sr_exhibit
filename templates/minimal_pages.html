@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -110,7 +110,7 @@
         }
 
         .player-name-styled {
-            /* 样式由内联 style 属性控制 */
+            /* Style controlled by inline style attribute */
             display: inline;
         }
 
@@ -140,14 +140,14 @@
             padding-right: 8px;
         }
 
-        /* 固定的前三名 */
+        /* Fixed top 3 ranks */
         .fixed-ranks {
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
         }
 
-        /* 翻页区域 - 自适应高度 */
+        /* Pagination area - adaptive height */
         .page-area {
             flex: 1;
             overflow: hidden;
@@ -229,7 +229,7 @@
     <div class="leaderboard">
         {{ if .Leaderboard.Runs }}
         <div class="rank-list">
-            <!-- 前三名固定 -->
+            <!-- Fixed top 3 ranks -->
             <div class="fixed-ranks">
                 {{ range $i, $run := .Leaderboard.Runs }}
                     {{ if lt $i 3 }}
@@ -294,12 +294,12 @@
 
             <div class="divider"></div>
 
-            <!-- 第4名及以后翻页 -->
+            <!-- 4th place and below pagination -->
             {{ $totalRuns := len .Leaderboard.Runs }}
             {{ if gt $totalRuns 3 }}
                 <div class="page-area" data-total-runs="{{ $totalRuns }}">
                     <div class="page-container">
-                        <!-- 第4名到最后一名 -->
+                        <!-- 4th place to last place -->
                         {{ range $i, $run := .Leaderboard.Runs }}
                             {{ if ge $i 3 }}
                                 <div class="rank-item" data-index="{{ $i }}">
@@ -351,10 +351,10 @@
             const pageArea = document.querySelector('.page-area');
             const pageContainer = pageArea?.querySelector('.page-container');
 
-            // 如果没有翻页区域，直接返回
+            // Exit early if no pagination area exists
             if (!pageArea || !pageContainer) return;
 
-            // 获取元素和尺寸 - 从 pageArea 查询所有 .rank-item（无论在 pageContainer 还是 .page div 中）
+            // Get elements and dimensions - query all .rank-item from pageArea (whether in pageContainer or .page div)
             function getElements() {
                 const rankItems = Array.from(pageArea.querySelectorAll('.rank-item'));
                 return {
@@ -366,29 +366,29 @@
             let elements = getElements();
             const totalItems = elements.rankItems.length;
 
-            // 检测名字是否溢出并添加滚动效果
+            // Detect name overflow and add scroll effect
             function updateNameScroll() {
                 const playerNames = document.querySelectorAll('.player-name');
-                // 滚动速度：每秒滚动的像素数
-                const scrollSpeed = 40; // 40px/秒
-                const pauseTime = 1; // 两端各暂停 1 秒
+                // Scroll speed: pixels per second
+                const scrollSpeed = 40; // 40px/s
+                const pauseTime = 1; // 1 second pause at each end
 
                 playerNames.forEach(nameEl => {
                     const innerEl = nameEl.querySelector('.player-name-inner');
                     if (!innerEl) return;
 
-                    // 检测是否溢出
+                    // Check if overflowed
                     const isOverflowing = innerEl.scrollWidth > nameEl.clientWidth;
 
                     if (isOverflowing) {
-                        // 计算超出的宽度
+                        // Calculate overflow width
                         const overflowWidth = innerEl.scrollWidth - nameEl.clientWidth;
-                        // 计算滚动距离：让文字右边缘对齐容器右边缘
+                        // Calculate scroll distance: align text right edge to container right edge
                         const scrollDistance = nameEl.clientWidth - innerEl.scrollWidth;
 
-                        // 单程滚动时间
+                        // One-way scroll time
                         const travelTime = overflowWidth / scrollSpeed;
-                        // 总时间 = 单程滚动 + 两端暂停
+                        // Total time = one-way scroll + pause at both ends
                         const oneWayTime = travelTime + pauseTime * 2;
 
                         innerEl.style.setProperty('--scroll-distance', `${scrollDistance}px`);
@@ -400,7 +400,7 @@
                 });
             }
 
-            // 计算每页显示的项目数
+            // Calculate items per page
             function calculateItemsPerPage() {
                 const areaHeight = pageArea.offsetHeight;
                 return Math.max(1, Math.floor(areaHeight / elements.itemHeight));
@@ -409,15 +409,15 @@
             let itemsPerPage = calculateItemsPerPage();
             let currentPage = 0;
 
-            // 创建页面
+            // Create pages
             function createPages() {
-                // 清除现有的页面元素
+                // Clear existing page elements
                 pageArea.querySelectorAll('.page').forEach(p => p.remove());
 
-                // 动态计算总页数
+                // Dynamically calculate total pages
                 const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-                // 将项目分组到页面中
+                // Group items into pages
                 for (let i = 0; i < totalPages; i++) {
                     const page = document.createElement('div');
                     page.className = 'page';
@@ -434,48 +434,48 @@
                 }
             }
 
-            // 切换到指定页面（带淡入淡出效果）
+            // Switch to specified page (with fade in/out effect)
             function showPage(pageIndex) {
                 const pages = pageArea.querySelectorAll('.page');
                 const activePage = pageArea.querySelector('.page.active');
 
                 if (activePage && activePage !== pages[pageIndex]) {
-                    // 当前页面淡出
+                    // Fade out current page
                     activePage.classList.add('fade-out');
                     activePage.classList.remove('active');
 
-                    // 等待淡出动画完成后显示新页面
+                    // Show new page after fade out animation completes
                     setTimeout(() => {
                         activePage.classList.remove('fade-out');
                         pages[pageIndex].classList.add('active');
-                    }, 400); // 与 CSS transition 时间一致
+                    }, 400); // Matches CSS transition time
                 } else if (!activePage) {
-                    // 初始显示
+                    // Initial display
                     pages[pageIndex].classList.add('active');
                 }
             }
 
-            // 下一页
+            // Next page
             function nextPage() {
                 const totalPages = Math.ceil(totalItems / itemsPerPage);
                 currentPage = (currentPage + 1) % totalPages;
                 showPage(currentPage);
             }
 
-            // 初始化
+            // Initialize
             createPages();
             updateNameScroll();
 
-            // 监听窗口大小变化 - 使用 debounce 避免频繁计算
+            // Listen for window resize - use debounce to avoid frequent calculations
             let resizeTimeout;
             window.addEventListener('resize', function() {
                 clearTimeout(resizeTimeout);
                 resizeTimeout = setTimeout(function() {
-                    // 将所有项目移回 pageContainer
+                    // Move all items back to pageContainer
                     const allItems = Array.from(pageArea.querySelectorAll('.rank-item'));
                     allItems.forEach(item => pageContainer.appendChild(item));
 
-                    // 重新获取元素和尺寸
+                    // Re-fetch elements and dimensions
                     elements = getElements();
                     itemsPerPage = calculateItemsPerPage();
                     currentPage = 0;
@@ -484,7 +484,7 @@
                 }, 100);
             });
 
-            // 每6秒翻页一次
+            // Change page every 6 seconds
             setInterval(nextPage, 6000);
         });
     </script>

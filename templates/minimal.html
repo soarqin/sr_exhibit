@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -110,7 +110,7 @@
         }
 
         .player-name-styled {
-            /* 样式由内联 style 属性控制 */
+            /* Style controlled by inline style attribute */
             display: inline;
         }
 
@@ -140,14 +140,14 @@
             padding-right: 8px;
         }
 
-        /* 固定的前三名 */
+        /* Fixed top 3 ranks */
         .fixed-ranks {
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
         }
 
-        /* 滚动的区域 - 自适应高度 */
+        /* Scroll area - adaptive height */
         .scroll-area {
             flex: 1;
             overflow: hidden;
@@ -164,7 +164,7 @@
             animation-play-state: paused;
         }
 
-        /* 默认动画，会被 JS 覆盖 */
+        /* Default animation, will be overridden by JS */
         @keyframes scroll {
             0% { transform: translateY(0); }
             90% { transform: translateY(calc(-3 * 34px)); }
@@ -172,7 +172,7 @@
             100% { transform: translateY(0); }
         }
 
-        /* 当记录足够少时禁用滚动 */
+        /* Disable scrolling when there are few records */
         .scroll-area.no-scroll .scroll-container {
             animation: none;
         }
@@ -218,7 +218,7 @@
     <div class="leaderboard">
         {{ if .Leaderboard.Runs }}
         <div class="rank-list">
-            <!-- 前三名固定 -->
+            <!-- Fixed top 3 ranks -->
             <div class="fixed-ranks">
                 {{ range $i, $run := .Leaderboard.Runs }}
                     {{ if lt $i 3 }}
@@ -283,13 +283,13 @@
 
             <div class="divider"></div>
 
-            <!-- 第4名及以后滚动 -->
+            <!-- 4th place and below scroll -->
             {{ $totalRuns := len .Leaderboard.Runs }}
             {{ if gt $totalRuns 3 }}
                 {{ $scrollCount := sub $totalRuns 3 }}
                 <div class="scroll-area" data-scroll-count="{{ $scrollCount }}">
                     <div class="scroll-container" data-total="{{ $scrollCount }}">
-                        <!-- 第4名到最后一名 -->
+                        <!-- 4th place to last place -->
                         {{ range $i, $run := .Leaderboard.Runs }}
                             {{ if ge $i 3 }}
                                 <div class="rank-item" data-index="{{ $i }}">
@@ -340,13 +340,13 @@
         document.addEventListener('DOMContentLoaded', function() {
             const scrollArea = document.querySelector('.scroll-area');
 
-            // 如果没有滚动区域，直接返回
+            // Exit early if no scroll area exists
             if (!scrollArea) return;
 
             const scrollContainer = scrollArea.querySelector('.scroll-container');
             if (!scrollContainer) return;
 
-            // 获取元素和尺寸
+            // Get elements and dimensions
             function getElements() {
                 const rankItems = scrollContainer.querySelectorAll('.rank-item');
                 return {
@@ -358,7 +358,7 @@
             let elements = getElements();
             const totalItems = elements.rankItems.length;
 
-            // 计算可见项目数
+            // Calculate visible items count
             function calculateVisibleItems() {
                 const areaHeight = scrollArea.offsetHeight;
                 return Math.floor(areaHeight / elements.itemHeight);
@@ -366,29 +366,29 @@
 
             let visibleItems = calculateVisibleItems();
 
-            // 检测名字是否溢出并添加滚动效果
+            // Detect name overflow and add scroll effect
             function updateNameScroll() {
                 const playerNames = document.querySelectorAll('.player-name');
-                // 滚动速度：每秒滚动的像素数
-                const scrollSpeed = 40; // 40px/秒
-                const pauseTime = 1; // 两端各暂停 1 秒
+                // Scroll speed: pixels per second
+                const scrollSpeed = 40; // 40px/s
+                const pauseTime = 1; // 1 second pause at each end
 
                 playerNames.forEach(nameEl => {
                     const innerEl = nameEl.querySelector('.player-name-inner');
                     if (!innerEl) return;
 
-                    // 检测是否溢出
+                    // Check if overflowed
                     const isOverflowing = innerEl.scrollWidth > nameEl.clientWidth;
 
                     if (isOverflowing) {
-                        // 计算超出的宽度
+                        // Calculate overflow width
                         const overflowWidth = innerEl.scrollWidth - nameEl.clientWidth;
-                        // 计算滚动距离：让文字右边缘对齐容器右边缘
+                        // Calculate scroll distance: align text right edge to container right edge
                         const scrollDistance = nameEl.clientWidth - innerEl.scrollWidth;
 
-                        // 单程滚动时间
+                        // One-way scroll time
                         const travelTime = overflowWidth / scrollSpeed;
-                        // 总时间 = 单程滚动 + 两端暂停
+                        // Total time = one-way scroll + pause at both ends
                         const oneWayTime = travelTime + pauseTime * 2;
 
                         innerEl.style.setProperty('--scroll-distance', `${scrollDistance}px`);
@@ -400,9 +400,9 @@
                 });
             }
 
-            // 更新滚动动画
+            // Update scroll animation
             function updateScrollAnimation() {
-                // 只有当有多于可见项目数时才滚动
+                // Only scroll when items exceed visible count
                 if (totalItems <= visibleItems) {
                     scrollArea.classList.add('no-scroll');
                     return;
@@ -410,34 +410,34 @@
 
                 scrollArea.classList.remove('no-scroll');
 
-                // 计算滚动距离
+                // Calculate scroll distance
                 const scrollDistance = elements.itemHeight * (totalItems - visibleItems);
 
-                // 固定停留时间（秒）
+                // Fixed pause duration (seconds)
                 const pauseDuration = 1;
 
-                // 根据项目数量计算滚动时间
-                const baseDuration = 1; // 每个项目1秒
+                // Calculate scroll time based on item count
+                const baseDuration = 1; // 1 second per item
                 const scrollDuration = totalItems * baseDuration;
 
-                // 总时长计算，确保跳回点不超过100%
+                // Total duration calculation, ensure reset point doesn't exceed 100%
                 const scrollTime = scrollDuration;
                 const headPause = pauseDuration;
                 const tailPause = pauseDuration;
                 const resetTime = 0.1;
                 const totalDuration = scrollTime + headPause + tailPause + resetTime;
 
-                // 计算各阶段百分比
+                // Calculate each stage percentage
                 const headPauseEnd = (headPause / totalDuration) * 100;
                 const scrollEnd = ((scrollTime + headPause) / totalDuration) * 100;
                 const tailPauseEnd = ((scrollTime + headPause + tailPause) / totalDuration) * 100;
                 const resetEnd = ((scrollTime + headPause + tailPause + resetTime) / totalDuration) * 100;
 
-                // 移除旧的样式表
+                // Remove old stylesheet
                 const oldStyleSheet = document.getElementById('dynamic-scroll-style');
                 if (oldStyleSheet) oldStyleSheet.remove();
 
-                // 创建滚动动画
+                // Create scroll animation
                 const keyframes = `
                     @keyframes scroll {
                         0% { transform: translateY(0); }
@@ -454,16 +454,16 @@
                 styleSheet.textContent = keyframes;
                 document.head.appendChild(styleSheet);
 
-                // 更新动画时长
+                // Update animation duration
                 scrollContainer.style.animationDuration = `${totalDuration}s`;
             }
 
-            // 监听窗口大小变化 - 使用 debounce 避免频繁计算
+            // Listen for window resize - use debounce to avoid frequent calculations
             let resizeTimeout;
             window.addEventListener('resize', function() {
                 clearTimeout(resizeTimeout);
                 resizeTimeout = setTimeout(function() {
-                    // 重新获取元素和尺寸
+                    // Re-fetch elements and dimensions
                     elements = getElements();
                     visibleItems = calculateVisibleItems();
                     updateScrollAnimation();
@@ -471,7 +471,7 @@
                 }, 100);
             });
 
-            // 初始化
+            // Initialize
             updateScrollAnimation();
             updateNameScroll();
         });
