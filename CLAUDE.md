@@ -296,8 +296,11 @@ return fmt.Sprintf("%d:%02d", minutes, seconds)
 
 ## Development Notes
 
-### Documentation Rule
-**IMPORTANT**: After completing any task, always update CLAUDE.md to reflect the changes made. This ensures documentation stays in sync with the codebase.
+### Code Standards
+1. **Always use English for comments and text** - All code comments, UI strings, and documentation must be in English
+2. **Update CLAUDE.md after completing tasks** - Keep this file current with project state and decisions
+3. **Write plans to docs/plans/ directory** - Store implementation plans in `docs/plans/` and delete outdated plan files
+4. **Prioritize plans from docs/plans/** - Always check and use plan files in `docs/plans/` directory before creating new plans
 
 ### Interactive Input Detection
 ```go
