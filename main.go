@@ -23,18 +23,19 @@ const (
 func main() {
 	// Define command line flags
 	var (
-		configFile    string
-		gameName      string
-		categoryName  string
-		outputDir     string
-		variablesStr  string
-		templatePath  string
-		showVersion   bool
-		timeout       string
-		useCache      bool   // Force use cache
-		refreshCache  bool   // Force refresh cache
-		showCacheList bool   // Show cache list
-		clearCache    bool   // Clear cache
+		configFile       string
+		gameName        string
+		categoryName    string
+		outputDir       string
+		variablesStr    string
+		subcategoryStr   string
+		templatePath    string
+		showVersion     bool
+		timeout         string
+		useCache        bool   // Force use cache
+		refreshCache    bool   // Force refresh cache
+		showCacheList   bool   // Show cache list
+		clearCache      bool   // Clear cache
 	)
 
 	flag.StringVar(&configFile, "config", "", "Config file path (YAML)")
@@ -42,6 +43,7 @@ func main() {
 	flag.StringVar(&categoryName, "category", "", "Category name or ID")
 	flag.StringVar(&outputDir, "output", "./output", "Output directory")
 	flag.StringVar(&variablesStr, "variables", "", "Subcategory filter (format: var1=value1,var2=value2)")
+	flag.StringVar(&subcategoryStr, "subcategory", "", "Subcategory filter by name (format: Name:Value,Name:Value)")
 	flag.StringVar(&templatePath, "template", "", "Custom template file path")
 	flag.StringVar(&timeout, "timeout", "30s", "API request timeout")
 	flag.BoolVar(&showVersion, "version", false, "Show version info")
@@ -127,6 +129,16 @@ func main() {
 		}
 	}
 
+	// Parse command line specified subcategory
+	var subcategoryFromCmdline map[string]string
+	if subcategoryStr != "" {
+		subcategoryFromCmdline, err = parseSubcategoryString(subcategoryStr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid subcategory format: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Determine template path to use
 	finalTemplatePath := templatePath
 	if finalTemplatePath == "" && config.Template != "" {
@@ -159,7 +171,7 @@ func main() {
 	}
 
 	// Execute generation
-	if err := run(context.Background(), config, duration, varFilters, finalTemplatePath, leaderboardCache, useCache, refreshCache); err != nil {
+	if err := run(context.Background(), config, duration, varFilters, subcategoryFromCmdline, subcategoryStr, finalTemplatePath, leaderboardCache, useCache, refreshCache); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -223,7 +235,34 @@ func isInteractive() bool {
 	return (fileInfo.Mode() & os.ModeCharDevice) != 0
 }
 
-func run(ctx context.Context, config models.Config, timeout time.Duration, varFilters map[string]string, templatePath string, lbCache *cache.LeaderboardCache, useCache, refreshCache bool) error {
+// parseSubcategoryString parses "Name:Value,Name:Value" format
+func parseSubcategoryString(s string) (map[string]string, error) {
+	if s == "" {
+		return nil, nil
+	}
+
+	result := make(map[string]string)
+	pairs := strings.Split(s, ",")
+
+	for _, pair := range pairs {
+		parts := strings.Split(strings.TrimSpace(pair), ":")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid subcategory format: %s (expected Name:Value)", pair)
+		}
+		varName := strings.TrimSpace(parts[0])
+		varValue := strings.TrimSpace(parts[1])
+
+		if varName == "" || varValue == "" {
+			return nil, fmt.Errorf("empty subcategory name or value in: %s", pair)
+		}
+
+		result[varName] = varValue
+	}
+
+	return result, nil
+}
+
+func run(ctx context.Context, config models.Config, timeout time.Duration, varFilters map[string]string, subcategoryFromCmdline map[string]string, subcategoryOriginalStr string, templatePath string, lbCache *cache.LeaderboardCache, useCache, refreshCache bool) error {
 	client := api.NewClient(config.API.BaseURL, timeout)
 
 	// Initialize player cache
@@ -289,27 +328,51 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 	// Determine variable filters to use
 	selectedVars := make(map[string]string)
 
-	if len(varFilters) > 0 {
+	// Priority 1: Command line --subcategory (name-based)
+	if len(subcategoryFromCmdline) > 0 {
+		fmt.Printf("Resolving subcategory from command line: %s\n", subcategoryOriginalStr)
+		resolved, err := client.ResolveSubcategoriesByName(ctx, game.ID, category.ID, subcategoryFromCmdline)
+		if err != nil {
+			return fmt.Errorf("failed to resolve subcategory names: %w", err)
+		}
+		selectedVars = resolved
+		fmt.Printf("  Resolved to: %v\n", selectedVars)
+	} else if config.Subcategory != "" {
+		// Priority 2: Config file subcategory (name-based)
+		fmt.Printf("Resolving subcategory from config: %s\n", config.Subcategory)
+		subcategoryFromConfig, err := parseSubcategoryString(config.Subcategory)
+		if err != nil {
+			return fmt.Errorf("invalid subcategory format in config: %w", err)
+		}
+		resolved, err := client.ResolveSubcategoriesByName(ctx, game.ID, category.ID, subcategoryFromConfig)
+		if err != nil {
+			return fmt.Errorf("failed to resolve subcategory names: %w", err)
+		}
+		selectedVars = resolved
+		fmt.Printf("  Resolved to: %v\n", selectedVars)
+	} else if len(varFilters) > 0 {
+		// Priority 3: Command line --variables (ID-based)
 		selectedVars = varFilters
 		fmt.Printf("Using command line specified variables: %v\n", selectedVars)
 	} else if len(config.Variables) > 0 {
+		// Priority 4: Config file variables (ID-based)
 		selectedVars = config.Variables
 		fmt.Printf("Using config file specified variables: %v\n", selectedVars)
 	} else if hasSubcategories {
+		// Priority 5: Interactive selection or defaults
 		if isInteractive() {
 			fmt.Println("\nDetected subcategory options...")
 			selectedVars = api.SelectSubcategories(variables, category.ID)
-		}
-	}
-
-	if len(selectedVars) == 0 {
-		for _, v := range variables {
-			if v.IsSubcategory && (v.Category == "" || v.Category == category.ID) && v.Values.Default != "" {
-				selectedVars[v.ID] = v.Values.Default
+		} else {
+			// Non-interactive: use defaults
+			for _, v := range variables {
+				if v.IsSubcategory && (v.Category == "" || v.Category == category.ID) && v.Values.Default != "" {
+					selectedVars[v.ID] = v.Values.Default
+				}
 			}
-		}
-		if len(selectedVars) > 0 {
-			fmt.Printf("Using default subcategory\n")
+			if len(selectedVars) > 0 {
+				fmt.Printf("Using default subcategory values\n")
+			}
 		}
 	}
 

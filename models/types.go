@@ -166,10 +166,11 @@ type Config struct {
 	Game           string            `yaml:"game"`
 	Category       string            `yaml:"category"`
 	Output         string            `yaml:"output"`
-	Template       string            `yaml:"template"` // Custom template file path
+	Template       string            `yaml:"template"`       // Custom template file path
 	API            APIConfig         `yaml:"api"`
 	Cache          CacheConfig       `yaml:"cache"`          // Cache configuration
-	Variables      map[string]string `yaml:"variables"`      // Variable filters
+	Variables      map[string]string `yaml:"variables"`      // Variable filters (ID-based)
+	Subcategory    string            `yaml:"subcategory"`    // Subcategory filter (format: "Name:Value")
 	CountryCodeMap map[string]string `yaml:"countryCodeMap"` // Country code replacement rules, e.g. {"xk": "rs"} for Kosovo -> Serbia
 }
 
