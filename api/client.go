@@ -221,8 +221,8 @@ func (c *Client) GetLeaderboard(ctx context.Context, gameID, categoryID string, 
 	}
 
 	// If API didn't return player data, we need to fetch it manually
-	if len(result.Data.Players) == 0 {
-		result.Data.Players = make(map[string]models.PlayerData)
+	if len(result.Data.Players.M) == 0 {
+		result.Data.Players.M = make(map[string]models.PlayerData)
 
 		// Collect all unique player IDs
 		playerIDs := make(map[string]bool)
@@ -252,7 +252,7 @@ func (c *Client) GetLeaderboard(ctx context.Context, gameID, categoryID string, 
 			for playerID := range playerIDs {
 				if data, found := c.playerCache.Get(playerID); found {
 					// Cache hit
-					result.Data.Players[playerID] = *data
+					result.Data.Players.M[playerID] = *data
 				} else {
 					// Cache miss, need to fetch from API
 					idsToFetch = append(idsToFetch, playerID)
@@ -288,7 +288,7 @@ func (c *Client) GetLeaderboard(ctx context.Context, gameID, categoryID string, 
 		for i := 0; i < len(idsToFetch); i++ {
 			r := <-results
 			if r.data != nil {
-				result.Data.Players[r.id] = *r.data
+				result.Data.Players.M[r.id] = *r.data
 			}
 		}
 
@@ -392,6 +392,73 @@ func (c *Client) ResolveSubcategoriesByName(ctx context.Context, gameID, categor
 	}
 
 	return result, nil
+}
+
+// ResolveSubcategoryByValue looks for a variable named "Subcategory" or "subcategory" and matches the value label.
+// Input: value label (e.g., "GCN")
+// Output: map of variable ID -> value ID (e.g., {"9dq73k2q": "mln1yv32"})
+func (c *Client) ResolveSubcategoryByValue(ctx context.Context, gameID, categoryID string, valueLabel string) (map[string]string, error) {
+	if valueLabel == "" {
+		return nil, nil
+	}
+
+	// Get all variables for the game
+	variables, err := c.GetVariables(ctx, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get variables: %w", err)
+	}
+
+	// Find variable name containing "Subcategory"/"subcategory" or "Subcategories"/"subcategories" (case-insensitive)
+	var matchedVar *models.Variable
+	var matches []models.Variable
+
+	for _, v := range variables {
+		// Only consider subcategories for this category
+		if v.IsSubcategory && (v.Category == "" || v.Category == categoryID) {
+			lowerName := strings.ToLower(v.Name)
+			if strings.HasSuffix(lowerName, "subcategory") || strings.HasSuffix(lowerName, "subcategories") ||
+				strings.Contains(lowerName, "subcategory") || strings.Contains(lowerName, "subcategories") {
+				matches = append(matches, v)
+			}
+		}
+	}
+
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no variable containing 'Subcategory'/'Subcategories' found for this category")
+	}
+
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("ambiguous: multiple variables containing 'Subcategory'/'Subcategories' found")
+	}
+
+	matchedVar = &matches[0]
+
+	// Find matching value by label (case-insensitive)
+	var matchedValueID string
+	var valueMatches []string
+
+	for valID, val := range matchedVar.Values.Values {
+		if strings.EqualFold(val.Label, valueLabel) {
+			valueMatches = append(valueMatches, valID)
+		}
+	}
+
+	if len(valueMatches) == 0 {
+		// Build list of available values for helpful error message
+		availableLabels := make([]string, 0, len(matchedVar.Values.Values))
+		for _, val := range matchedVar.Values.Values {
+			availableLabels = append(availableLabels, val.Label)
+		}
+		return nil, fmt.Errorf("value '%s' not found for Subcategory. Available options: %s",
+			valueLabel, strings.Join(availableLabels, ", "))
+	}
+
+	if len(valueMatches) > 1 {
+		return nil, fmt.Errorf("ambiguous value '%s': multiple values match", valueLabel)
+	}
+
+	matchedValueID = valueMatches[0]
+	return map[string]string{matchedVar.ID: matchedValueID}, nil
 }
 
 // GetUser gets user info

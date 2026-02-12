@@ -43,7 +43,7 @@ func main() {
 	flag.StringVar(&categoryName, "category", "", "Category name or ID")
 	flag.StringVar(&outputDir, "output", "./output", "Output directory")
 	flag.StringVar(&variablesStr, "variables", "", "Subcategory filter (format: var1=value1,var2=value2)")
-	flag.StringVar(&subcategoryStr, "subcategory", "", "Subcategory filter by name (format: Name:Value,Name:Value)")
+	flag.StringVar(&subcategoryStr, "subcategory", "", "Subcategory value (auto-matches variable named 'Subcategory'/'Subcategories')")
 	flag.StringVar(&templatePath, "template", "", "Custom template file path")
 	flag.StringVar(&timeout, "timeout", "30s", "API request timeout")
 	flag.BoolVar(&showVersion, "version", false, "Show version info")
@@ -129,16 +129,6 @@ func main() {
 		}
 	}
 
-	// Parse command line specified subcategory
-	var subcategoryFromCmdline map[string]string
-	if subcategoryStr != "" {
-		subcategoryFromCmdline, err = parseSubcategoryString(subcategoryStr)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: invalid subcategory format: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
 	// Determine template path to use
 	finalTemplatePath := templatePath
 	if finalTemplatePath == "" && config.Template != "" {
@@ -171,7 +161,7 @@ func main() {
 	}
 
 	// Execute generation
-	if err := run(context.Background(), config, duration, varFilters, subcategoryFromCmdline, subcategoryStr, finalTemplatePath, leaderboardCache, useCache, refreshCache); err != nil {
+	if err := run(context.Background(), config, duration, varFilters, subcategoryStr, finalTemplatePath, leaderboardCache, useCache, refreshCache); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -236,33 +226,7 @@ func isInteractive() bool {
 }
 
 // parseSubcategoryString parses "Name:Value,Name:Value" format
-func parseSubcategoryString(s string) (map[string]string, error) {
-	if s == "" {
-		return nil, nil
-	}
-
-	result := make(map[string]string)
-	pairs := strings.Split(s, ",")
-
-	for _, pair := range pairs {
-		parts := strings.Split(strings.TrimSpace(pair), ":")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid subcategory format: %s (expected Name:Value)", pair)
-		}
-		varName := strings.TrimSpace(parts[0])
-		varValue := strings.TrimSpace(parts[1])
-
-		if varName == "" || varValue == "" {
-			return nil, fmt.Errorf("empty subcategory name or value in: %s", pair)
-		}
-
-		result[varName] = varValue
-	}
-
-	return result, nil
-}
-
-func run(ctx context.Context, config models.Config, timeout time.Duration, varFilters map[string]string, subcategoryFromCmdline map[string]string, subcategoryOriginalStr string, templatePath string, lbCache *cache.LeaderboardCache, useCache, refreshCache bool) error {
+func run(ctx context.Context, config models.Config, timeout time.Duration, varFilters map[string]string, subcategoryValue string, templatePath string, lbCache *cache.LeaderboardCache, useCache, refreshCache bool) error {
 	client := api.NewClient(config.API.BaseURL, timeout)
 
 	// Initialize player cache
@@ -328,25 +292,21 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 	// Determine variable filters to use
 	selectedVars := make(map[string]string)
 
-	// Priority 1: Command line --subcategory (name-based)
-	if len(subcategoryFromCmdline) > 0 {
-		fmt.Printf("Resolving subcategory from command line: %s\n", subcategoryOriginalStr)
-		resolved, err := client.ResolveSubcategoriesByName(ctx, game.ID, category.ID, subcategoryFromCmdline)
+	// Priority 1: Command line --subcategory (value only, auto-match "Subcategory" variable)
+	if subcategoryValue != "" {
+		fmt.Printf("Resolving subcategory from command line: %s\n", subcategoryValue)
+		resolved, err := client.ResolveSubcategoryByValue(ctx, game.ID, category.ID, subcategoryValue)
 		if err != nil {
-			return fmt.Errorf("failed to resolve subcategory names: %w", err)
+			return fmt.Errorf("failed to resolve subcategory: %w", err)
 		}
 		selectedVars = resolved
 		fmt.Printf("  Resolved to: %v\n", selectedVars)
 	} else if config.Subcategory != "" {
-		// Priority 2: Config file subcategory (name-based)
+		// Priority 2: Config file subcategory (value only, auto-match "Subcategory" variable)
 		fmt.Printf("Resolving subcategory from config: %s\n", config.Subcategory)
-		subcategoryFromConfig, err := parseSubcategoryString(config.Subcategory)
+		resolved, err := client.ResolveSubcategoryByValue(ctx, game.ID, category.ID, config.Subcategory)
 		if err != nil {
-			return fmt.Errorf("invalid subcategory format in config: %w", err)
-		}
-		resolved, err := client.ResolveSubcategoriesByName(ctx, game.ID, category.ID, subcategoryFromConfig)
-		if err != nil {
-			return fmt.Errorf("failed to resolve subcategory names: %w", err)
+			return fmt.Errorf("failed to resolve subcategory: %w", err)
 		}
 		selectedVars = resolved
 		fmt.Printf("  Resolved to: %v\n", selectedVars)
@@ -486,7 +446,7 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 			Category:  cachedData.Category.ID,
 			Weblink:   "",
 			Runs:      cachedData.Runs,
-			Players:   cachedData.Players,
+			Players:   models.PlayersField{M: cachedData.Players},
 		}
 		cacheTime, _ := lbCache.GetCacheTime(cacheKey)
 		fmt.Printf("✓ Loaded cache (cache time: %s)\n", cacheTime.Format("2006-01-02 15:04:05"))
@@ -575,7 +535,7 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 					Category:  cachedData.Category.ID,
 					Weblink:   "",
 					Runs:      cachedData.Runs,
-					Players:   cachedData.Players,
+					Players:   models.PlayersField{M: cachedData.Players},
 				}
 				fmt.Println("✓ Using cached data")
 			} else {
@@ -624,7 +584,7 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 		Game:         *game,
 		Category:     *category,
 		Leaderboard: *leaderboard,
-		Players:      leaderboard.Players,
+			Players:      leaderboard.Players.M,
 	}
 
 	if err := gen.Generate(outputPath, data); err != nil {
@@ -648,7 +608,7 @@ func saveToCache(lbCache *cache.LeaderboardCache, key *cache.CacheKey, game *mod
 	for _, run := range leaderboard.Runs {
 		for _, player := range run.Run.Players {
 			if player.Rel == "user" {
-				if pd, ok := leaderboard.Players[player.ID]; ok {
+				if pd, ok := leaderboard.Players.M[player.ID]; ok {
 					cachedData.Players[player.ID] = pd
 				}
 			}

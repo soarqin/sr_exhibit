@@ -1,5 +1,10 @@
 package models
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // APIResponse is a generic API response wrapper
 type APIResponse[T any] struct {
 	Data []T `json:"data"`
@@ -111,13 +116,63 @@ type LeaderboardResponse struct {
 	Data LeaderboardData `json:"data"`
 }
 
+// PlayersField handles the players field which can be either an array or a map
+type PlayersField struct {
+	M map[string]PlayerData
+}
+
+// UnmarshalJSON implements json.Unmarshaler for PlayersField
+func (p *PlayersField) UnmarshalJSON(data []byte) error {
+	// Try to parse as object with "data" field first
+	var playersObj struct {
+		Data []PlayerData `json:"data"`
+	}
+	if err := json.Unmarshal(data, &playersObj); err == nil {
+		// Successfully parsed as {"data": [...]}
+		p.M = make(map[string]PlayerData)
+		for _, player := range playersObj.Data {
+			if player.ID != "" {
+				p.M[player.ID] = player
+			}
+		}
+		return nil
+	}
+
+	// Try as plain array
+	var playersArray []PlayerData
+	if err := json.Unmarshal(data, &playersArray); err == nil {
+		p.M = make(map[string]PlayerData)
+		for _, player := range playersArray {
+			if player.ID != "" {
+				p.M[player.ID] = player
+			}
+		}
+		return nil
+	}
+
+	// Try as plain map
+	playersMap := make(map[string]PlayerData)
+	if err := json.Unmarshal(data, &playersMap); err == nil {
+		p.M = playersMap
+		return nil
+	}
+
+	// All attempts failed
+	return fmt.Errorf("unable to parse players field")
+}
+
+// MarshalJSON implements json.Marshaler for PlayersField
+func (p *PlayersField) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.M)
+}
+
 // LeaderboardData represents leaderboard data
 type LeaderboardData struct {
-	Game      string                `json:"game"`      // Game ID
-	Category  string                `json:"category"`  // Category ID
-	Weblink   string                `json:"weblink"`
-	Runs      []RunEntry            `json:"runs"`
-	Players   map[string]PlayerData `json:"players"`
+	Game      string        `json:"game"`      // Game ID
+	Category  string        `json:"category"`  // Category ID
+	Weblink   string        `json:"weblink"`
+	Runs      []RunEntry     `json:"runs"`
+	Players   PlayersField  `json:"players"`
 }
 
 // PlayerData represents detailed player data
