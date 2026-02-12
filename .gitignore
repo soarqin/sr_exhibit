@@ -38,7 +38,7 @@ Thumbs.db
 # Config files (may contain sensitive data)
 config.yaml
 *.yaml
-!config.yaml.example
+!config.yaml.template
 
 # Build artifacts
 /dist/

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/soar/sr_exhibit/api"
@@ -17,7 +18,8 @@ import (
 )
 
 const (
-	version = "1.0.0"
+	version            = "1.0.0"
+	configTemplateFile = "config.yaml.template"
 )
 
 func main() {
@@ -36,6 +38,7 @@ func main() {
 		refreshCache    bool   // Force refresh cache
 		showCacheList   bool   // Show cache list
 		clearCache      bool   // Clear cache
+		generateConfig  bool   // Generate config file
 	)
 
 	flag.StringVar(&configFile, "config", "", "Config file path (YAML)")
@@ -51,10 +54,20 @@ func main() {
 	flag.BoolVar(&refreshCache, "refresh-cache", false, "Force refresh and update cache")
 	flag.BoolVar(&showCacheList, "cache-list", false, "List all cached leaderboards")
 	flag.BoolVar(&clearCache, "cache-clear", false, "Clear all leaderboard cache")
+	flag.BoolVar(&generateConfig, "generate", false, "Generate config.yaml from template")
 	flag.Parse()
 
 	if showVersion {
 		fmt.Printf("sr_exhibit v%s\n", version)
+		os.Exit(0)
+	}
+
+	// Generate config mode
+	if generateConfig {
+		if err := generateWithSelection(gameName, categoryName, subcategoryStr); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 
@@ -218,6 +231,222 @@ func confirm(prompt string) bool {
 	}
 }
 
+// promptConfig prompts the user for configuration values
+func promptConfig(ngame, ncategory, nsubcategory string) (game, category, subcategory string) {
+	if ngame == "" {
+		ngame = readLine("Enter game name or abbreviation: ")
+	}
+	if ncategory == "" {
+		ncategory = readLine("Enter category name: ")
+	}
+	if nsubcategory == "" {
+		nsubcategory = readLine("Enter subcategory value (optional, press Enter to skip): ")
+	}
+	return ngame, ncategory, nsubcategory
+}
+
+// generateWithSelection generates config by fetching options from API and letting user select
+func generateWithSelection(ngame, ncategory, nsubcategory string) error {
+	// Prompt for game if not provided
+	game := ngame
+	if game == "" {
+		game = readLine("Enter game name or abbreviation: ")
+	}
+
+	// Create client and fetch game info
+	ctx := context.Background()
+	duration, err := time.ParseDuration("30s")
+	if err != nil {
+		return fmt.Errorf("failed to parse timeout: %w", err)
+	}
+	client := api.NewClient("https://www.speedrun.com/api/v1", duration)
+
+	fmt.Printf("Searching game: %s\n", game)
+	gameData, err := client.SearchGameByName(ctx, game)
+	if err != nil {
+		return fmt.Errorf("failed to search game: %w", err)
+	}
+	fmt.Printf("  Found game: %s (ID: %s)\n", gameData.Names.International, gameData.ID)
+
+	// Check if category and subcategory are already provided
+	allProvided := ncategory != "" && nsubcategory != ""
+
+	// Only fetch categories if not already provided
+	var selectedCategory *models.Category
+	if !allProvided {
+		// Get categories
+		fmt.Println("Getting game categories...")
+		categories, err := client.GetCategories(ctx, gameData.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get categories: %w", err)
+		}
+		fmt.Printf("  Found %d categories\n", len(categories))
+
+		// Select category
+		if ncategory == "" {
+			if !isInteractive() {
+				return fmt.Errorf("category is required for non-interactive mode")
+			}
+			selectedCategory, err = api.SelectCategory(categories)
+			if err != nil {
+				return fmt.Errorf("failed to select category: %w", err)
+			}
+		} else {
+			// Find category by name
+			for _, cat := range categories {
+				if strings.EqualFold(cat.Name, ncategory) {
+					selectedCategory = &cat
+					break
+				}
+			}
+			if selectedCategory == nil {
+				return fmt.Errorf("category not found: %s", ncategory)
+			}
+		}
+		fmt.Printf("  Selected category: %s\n", selectedCategory.Name)
+	} else {
+		// Category provided via command line
+		// Fetch categories to find the matching one
+		fmt.Println("Getting game categories...")
+		categories, err := client.GetCategories(ctx, gameData.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get categories: %w", err)
+		}
+		// Find category by name
+		for _, cat := range categories {
+			if strings.EqualFold(cat.Name, ncategory) {
+				selectedCategory = &cat
+				break
+			}
+		}
+		if selectedCategory == nil {
+			return fmt.Errorf("category not found: %s", ncategory)
+		}
+		fmt.Printf("  Selected category: %s\n", selectedCategory.Name)
+	}
+
+	// Get variables to check for subcategories
+	fmt.Println("Getting game variables...")
+	variables, err := client.GetVariables(ctx, gameData.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get variables: %w", err)
+	}
+
+	// Count subcategory variables for this category
+	var subcategoryVars []models.Variable
+	for _, v := range variables {
+		if v.IsSubcategory && (v.Category == "" || v.Category == selectedCategory.ID) {
+			subcategoryVars = append(subcategoryVars, v)
+		}
+	}
+	hasSubcategories := len(subcategoryVars) > 0
+
+	var selectedVars map[string]string
+	var subcategoryValue string
+
+	if hasSubcategories && nsubcategory == "" {
+		// Show subcategory selection
+		if !isInteractive() {
+			return fmt.Errorf("subcategory is required for non-interactive mode")
+		}
+		selectedVars = api.SelectSubcategories(variables, selectedCategory.ID)
+		if len(selectedVars) == 0 {
+			fmt.Println("  No subcategory selected, using defaults")
+		}
+		// If only one subcategory variable, extract value for subcategory field
+		if len(subcategoryVars) == 1 && len(selectedVars) > 0 {
+			// Get the value label from the selected variable
+			for varID, valID := range selectedVars {
+				for _, v := range subcategoryVars {
+					if v.ID == varID {
+						if val, ok := v.Values.Values[valID]; ok {
+							subcategoryValue = val.Label
+						}
+						break
+					}
+				}
+				if subcategoryValue != "" {
+					break
+				}
+			}
+		}
+	} else if nsubcategory != "" {
+		// Direct subcategory value provided, resolve it
+		fmt.Printf("Resolving subcategory from command line: %s\n", nsubcategory)
+		selectedVars, err = client.ResolveSubcategoryByValue(ctx, gameData.ID, selectedCategory.ID, nsubcategory)
+		if err != nil {
+			return fmt.Errorf("failed to resolve subcategory: %w", err)
+		}
+		fmt.Printf("  Resolved to: %v\n", selectedVars)
+		subcategoryValue = nsubcategory
+	}
+
+	// Generate config file
+	return generateConfigFile(game, selectedCategory.Name, subcategoryValue, selectedVars)
+}
+
+// generateConfigFile generates a config.yaml from template and user input
+func generateConfigFile(game, category string, subcategoryValue string, variables map[string]string) error {
+	// Read template file
+	templateContent, err := os.ReadFile(configTemplateFile)
+	if err != nil {
+		return fmt.Errorf("failed to read template: %w", err)
+	}
+
+	// Create template and execute with data
+	tmpl, err := template.New(configTemplateFile).Parse(string(templateContent))
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	// Build variables YAML string if variables provided
+	var variablesYAML string
+	if len(variables) > 0 {
+		var builder strings.Builder
+		for varID, valID := range variables {
+			builder.WriteString(fmt.Sprintf("  \"%s\": \"%s\"\n", varID, valID))
+		}
+		variablesYAML = builder.String()
+	} else {
+		variablesYAML = ""
+	}
+
+	data := struct {
+		Game       string
+		Category   string
+		Subcategory string
+		Variables   string
+	}{
+		Game:       game,
+		Category:   category,
+		Subcategory: subcategoryValue,
+		Variables:   variablesYAML,
+	}
+
+	var result strings.Builder
+	if err := tmpl.Execute(&result, data); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	// Handle subcategory field comment
+	finalResult := result.String()
+	if subcategoryValue != "" {
+		// Enable subcategory field (remove # from template)
+		finalResult = strings.ReplaceAll(finalResult, "#subcategory: \"{{.Subcategory}}\"", "subcategory: \"{{.Subcategory}}\"")
+	} else {
+		// Comment out subcategory field (add # to template)
+		finalResult = strings.ReplaceAll(finalResult, "subcategory: \"{{.Subcategory}}\"", "#subcategory: \"{{.Subcategory}}\"")
+	}
+
+	// Write to config.yaml
+	if err := os.WriteFile("config.yaml", []byte(finalResult), 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	fmt.Println("✓ Generated config.yaml")
+	return nil
+}
+
 // isInteractive checks if running in an interactive terminal environment
 func isInteractive() bool {
 	// Check if stdin is a terminal
@@ -225,7 +454,7 @@ func isInteractive() bool {
 	return (fileInfo.Mode() & os.ModeCharDevice) != 0
 }
 
-// parseSubcategoryString parses "Name:Value,Name:Value" format
+// run executes the main program logic
 func run(ctx context.Context, config models.Config, timeout time.Duration, varFilters map[string]string, subcategoryValue string, templatePath string, lbCache *cache.LeaderboardCache, useCache, refreshCache bool) error {
 	client := api.NewClient(config.API.BaseURL, timeout)
 
@@ -280,14 +509,14 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 		return fmt.Errorf("failed to get variables: %w", err)
 	}
 
-	// Check if there are subcategories
-	hasSubcategories := false
+	// Count subcategory variables for this category
+	var subcategoryVars []models.Variable
 	for _, v := range variables {
 		if v.IsSubcategory && (v.Category == "" || v.Category == category.ID) {
-			hasSubcategories = true
-			break
+			subcategoryVars = append(subcategoryVars, v)
 		}
 	}
+	hasSubcategories := len(subcategoryVars) > 0
 
 	// Determine variable filters to use
 	selectedVars := make(map[string]string)
@@ -323,6 +552,31 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 		if isInteractive() {
 			fmt.Println("\nDetected subcategory options...")
 			selectedVars = api.SelectSubcategories(variables, category.ID)
+			// If only one subcategory variable, resolve it via subcategory field
+			if len(subcategoryVars) == 1 && len(selectedVars) > 0 {
+				// Extract value label and use subcategory resolution
+				for varID, valID := range selectedVars {
+					for _, v := range subcategoryVars {
+						if v.ID == varID {
+							if val, ok := v.Values.Values[valID]; ok {
+								subcategoryValue = val.Label
+								fmt.Printf("Resolving single subcategory variable: %s = %s\n", v.Name, val.Label)
+							}
+							break
+						}
+					}
+					if subcategoryValue != "" {
+						break
+					}
+				}
+				// Resolve subcategory by value
+				resolved, err := client.ResolveSubcategoryByValue(ctx, game.ID, category.ID, subcategoryValue)
+				if err != nil {
+					return fmt.Errorf("failed to resolve subcategory: %w", err)
+				}
+				selectedVars = resolved
+				fmt.Printf("  Resolved to: %v\n", selectedVars)
+			}
 		} else {
 			// Non-interactive: use defaults
 			for _, v := range variables {
@@ -332,6 +586,26 @@ func run(ctx context.Context, config models.Config, timeout time.Duration, varFi
 			}
 			if len(selectedVars) > 0 {
 				fmt.Printf("Using default subcategory values\n")
+			}
+			// If only one subcategory variable, also resolve via subcategory field for consistency
+			if len(subcategoryVars) == 1 && len(selectedVars) > 0 {
+				for varID, valID := range selectedVars {
+					for _, v := range subcategoryVars {
+						if v.ID == varID {
+							if val, ok := v.Values.Values[valID]; ok {
+								subcategoryValue = val.Label
+								// Re-resolve via subcategory field
+								resolved, err := client.ResolveSubcategoryByValue(ctx, game.ID, category.ID, subcategoryValue)
+								if err != nil {
+									return fmt.Errorf("failed to resolve subcategory: %w", err)
+								}
+								selectedVars = resolved
+							}
+							break
+						}
+					}
+					break
+				}
 			}
 		}
 	}

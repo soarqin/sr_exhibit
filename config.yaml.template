@@ -1,0 +1,66 @@
+# sr_exhibit Configuration File
+#
+# Generate config: sr_exhibit --generate
+# Or with arguments: sr_exhibit --generate --game <game> --category <category> --subcategory <value>
+# Example: sr_exhibit --generate --game sms --category "Any%" --subcategory "GCN"
+#
+# After generating, you can modify the config file as needed, then run:
+#   sr_exhibit  (will read from config.yaml by default)
+# Copy this file to config.yaml and modify as needed
+
+# Game identifier: use game abbreviation (e.g., "sms") or full game name
+game: "{{.Game}}"
+
+# Category name: use exact category name (e.g., "Any%", "100%")
+category: "{{.Category}}"
+
+# Subcategory filter (user-friendly, value-only)
+# Specify just the value, system will auto-match variable named "Subcategory"/"Subcategories"
+# Example: "GCN" matches a variable like "Any% - Subcategories"
+# This takes priority over the 'variables' field below
+subcategory: "{{.Subcategory}}"
+
+# OR use ID-based variable filters (advanced)
+# Map of variable ID to value ID
+# You can find IDs from the speedrun.com API or by inspecting network requests
+# Example: {"9dq73k2q": "mln1yv32"} means variable ID 9dq73k2q = value ID mln1yv32
+#   "9dq73k2q": "mln1yv32"  # Example: Version: GCN
+#   "8ljz1xkl": "421j0x1l"  # Example: Characters: Mario
+variables:
+{{.Variables}}
+
+# Output file path for generated HTML
+# Default: "./output/index.html"
+output: "./output/index.html"
+
+# Custom template file path (optional)
+# Leave empty to use the default embedded template
+# Example: "./my_template.html"
+template: ""
+
+# API Configuration
+api:
+  # Base URL for speedrun.com API
+  # Default: "https://www.speedrun.com/api/v1"
+  baseURL: "https://www.speedrun.com/api/v1"
+  # API request timeout duration
+  # Default: "30s"
+  timeout: "30s"
+
+# Cache Configuration
+cache:
+  # Enable or disable caching
+  # Default: true
+  enabled: true
+  # Cache directory path
+  # Default: ".cache"
+  dir: ".cache"
+  # Cache expiration time (default: 720h = 30 days)
+  ttl: "720h"
+
+# Country code replacement rules (optional)
+# Map of country code to replacement code
+# Use this to fix incorrect or missing country codes from speedrun.com
+# Example: Kosovo's code "xk" is deprecated, replace with "rs" (Serbia)
+countryCodeMap:
+  # "xk": "rs"  # Kosovo -> Serbia
