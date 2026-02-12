@@ -13,11 +13,15 @@ sr_exhibit is a command-line tool written in Go that fetches speedrun leaderboar
 
 ### 2. Subcategory Support
 - Automatically detects game subcategory variables
-- Three ways to specify variables:
-  - Command line: `--variables "var1=value1,var2=value2"`
-  - Config file: `variables` field in `config.yaml`
+- **Smart subcategory handling**: When only one subcategory variable exists, automatically uses value-based `subcategory` field; otherwise uses ID-based `variables` field
+- Four ways to specify subcategories:
+  - Command line: `--subcategory "Value"` (value-based, auto-matches variable)
+  - Config file: `subcategory` field in `config.yaml` (value-based)
+  - Command line: `--variables "var1=value1,var2=value2"` (ID-based)
+  - Config file: `variables` field in `config.yaml` (ID-based)
   - Interactive selection: Program lists options for user to choose
 - Only shows subcategories relevant to current category (filtered by `variable.Category` field)
+- **Priority order**: Command-line `--subcategory` > Config `subcategory` > Command-line `--variables` > Config `variables` > Interactive/Defaults
 
 ### 3. Player Name Styles
 - Supports speedrun.com API's name-style feature
@@ -68,7 +72,8 @@ sr_exhibit/
 ├── templates/
 │   ├── minimal.html     # Minimal style template
 │   └── leaderboard.html # Default template
-├── config.yaml          # Config file example
+├── config.yaml.template # Config file template for --generate
+├── config.yaml          # Generated config file (git-ignored)
 ├── .cache/              # Cache directory
 │   ├── players.json     # Player data cache
 │   └── *.csv            # Leaderboard cache files
@@ -150,6 +155,16 @@ GET /api/v1/users/{user_id}
 ```
 
 ## Usage Examples
+
+### Generate Config File
+
+```bash
+# Generate config interactively
+sr_exhibit --generate
+
+# Generate with command-line arguments
+sr_exhibit --generate --game sms --category "Any%" --subcategory "GCN"
+```
 
 ### Basic Usage
 ```bash
@@ -342,7 +357,11 @@ func GetStyledPlayerName(playerData models.PlayerData) StyledPlayerName
 
 ## Recent Updates
 
-### 2026-02-08
+### 2026-02-12
+- **Config Generator**: Added `--generate` flag to generate config.yaml from template with API-based interactive selection
+- **Smart Subcategory Handling**: When only one subcategory variable exists, automatically uses value-based `subcategory` field; otherwise uses ID-based `variables` field
+- **CLI Enhancement**: Added `--subcategory` parameter for value-based subcategory specification
+- **Config Template**: Added config.yaml.template with placeholders for automated generation
 - **Country Flags**: Display country flag images before player names (using speedrun.com official flag URLs)
 - **Documentation**: Added README.md with program description, usage, and build instructions
 - **Licensing**: Added LICENSE file (MIT License)

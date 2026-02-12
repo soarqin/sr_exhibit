@@ -43,14 +43,25 @@ sr_exhibit --game "sm64" --category "16 Star"
 
 ### Using config file
 
+Generate a config file interactively:
+
+```bash
+sr_exhibit --generate
+```
+
+Or with command-line arguments:
+
+```bash
+sr_exhibit --generate --game sms --category "Any%" --subcategory "GCN"
+```
+
 Create a `config.yaml` file:
 
 ```yaml
 game: "sms"
 category: "Any%"
+subcategory: "GCN"  # or use variables: {...} for ID-based
 output: "./output/index.html"
-variables:
-  version: "GCN"
 api:
   baseURL: "https://www.speedrun.com/api/v1"
   timeout: "30s"
@@ -71,10 +82,12 @@ sr_exhibit --config config.yaml
 ```
 --game string          Game name or abbreviation
 --category string      Category name
+--subcategory string    Subcategory value (auto-matches variable name)
+--variables string     Variable filters (format: "var1=value1,var2=value2")
 --output string        Output HTML file path (default "./output/index.html")
 --template string      Custom HTML template file path
---variables string     Variable filters (format: "var1=value1,var2=value2")
 --config string        Config file path (default "config.yaml")
+--generate             Generate config.yaml from template
 --use-cache           Force use cached data
 --refresh-cache       Force refresh cached data
 --cache-list          List all cached leaderboards
